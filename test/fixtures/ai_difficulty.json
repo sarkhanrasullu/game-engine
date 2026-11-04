@@ -1,0 +1,65 @@
+{
+  "description": "CPU opponent tuning (story-004). 'levels' are the three difficulties; they differ only by these numbers. 'behaviour' is shared decision tuning. Frames are 60 Hz sim ticks; chances are 0..1 probabilities; distances are world units. Loaded and validated by src/ai/difficulty.js. story-009 (design/quick-specs/specials-super-meter.md \u00a79): specialShare = chance a neutral decision becomes a special picked by the move's aiRole; superPunishChance = chance a full-meter punish spends Overwind; superComebackHp = own HP fraction at or below which a full-meter punish always spends Overwind (0 = off). Overwind is never used raw in neutral.",
+  "default": "normal",
+  "behaviour": {
+    "reachMargin": 0.08,
+    "threatMargin": 0.25,
+    "ringEdgeMargin": 0.6,
+    "heavyPokeShare": 0.3,
+    "lowPokeShare": 0.25,
+    "waitWeight": 0.35,
+    "guardWeight": 0.4,
+    "backOffWeight": 0.45,
+    "sidestepWeight": 0.6,
+    "planJitterFrames": 6,
+    "pokeKeys": [
+      "light",
+      "crouchLight",
+      "heavy"
+    ]
+  },
+  "levels": {
+    "easy": {
+      "reactionFrames": 15,
+      "decisionFrames": 14,
+      "blockChance": 0.2,
+      "sidestepChance": 0.1,
+      "whiffPunishChance": 0.15,
+      "throwChance": 0.15,
+      "aggression": 0.35,
+      "mistakeRate": 0.3,
+      "specialShare": 0.05,
+      "superPunishChance": 0.4,
+      "superBlockPunishChance": 0.0,
+      "superComebackHp": 0.0
+    },
+    "normal": {
+      "reactionFrames": 14,
+      "decisionFrames": 10,
+      "blockChance": 0.5,
+      "sidestepChance": 0.2,
+      "whiffPunishChance": 0.45,
+      "throwChance": 0.4,
+      "aggression": 0.55,
+      "mistakeRate": 0.12,
+      "specialShare": 0.1,
+      "superPunishChance": 0.75,
+      "superBlockPunishChance": 0.6,
+      "superComebackHp": 0.35
+    },
+    "hard": {
+      "reactionFrames": 9,
+      "decisionFrames": 6,
+      "blockChance": 0.8,
+      "sidestepChance": 0.3,
+      "whiffPunishChance": 0.85,
+      "throwChance": 0.7,
+      "aggression": 0.7,
+      "mistakeRate": 0.03,
+      "specialShare": 0.15,
+      "superPunishChance": 1.0,
+      "superBlockPunishChance": 1.0,
+      "superComebackHp": 0.5
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@sarkhanrasullu/game-engine",
+  "version": "0.1.0",
+  "description": "Data-driven 3D fighting-game engine: fixed-step core, deterministic duel sim, fair CPU pilot and input layer. Raw ES modules, no build step.",
+  "license": "MIT",
+  "author": "sarkhanrasullu",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarkhanrasullu/game-engine.git"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./core": "./src/core/index.js",
+    "./sim": "./src/sim/index.js",
+    "./ai": "./src/ai/index.js",
+    "./input": "./src/input/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\""
+  },
+  "peerDependencies": {
+    "three": ">=0.187.0 <0.188.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

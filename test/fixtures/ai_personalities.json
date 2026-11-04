@@ -1,0 +1,54 @@
+{
+  "description": "CPU personalities (story-011). Each entry layers a play style on top of whichever difficulty level the CPU uses (assets/data/ai_difficulty.json). Keys are the snake_case form of the ai_difficulty.json level and behaviour keys (throw_chance = throwChance). 'scale' multiplies the level/behaviour value (>= 0; 1 = unchanged), then 'set' replaces it outright. Level probabilities are clamped to 0..1 after scaling; the result is re-validated for every level at load. Locked keys (reaction_frames, decision_frames, mistake_rate, plan_jitter_frames, reach_margin, threat_margin, ring_edge_margin) are the fairness rules and the level's skill tier and may not appear here: a personality changes style, never reaction delay or what the CPU can see. The map key is the personalityId referenced by assets/data/arcade_ladder.json; display names are player-facing copy and live in src/ui/strings.js PERSONALITY_TEXT keyed by that id (no 'name' field here); 'summary' is a designer note. Tuning (2026-11-04, production/session-logs/decision-log.md): each profile at Normal wins 30-70% vs the default Normal CPU on either fighter (node tools/balance-sim.mjs --seeds 400 --pairs normal/<id>:normal,normal:normal/<id>), and every pair stays >= 0.20 apart in the 60 s action mix (tests/ai/cpu-personalities.test.js); win rate follows the neutral offence share (aggression vs the wait/back-off/guard weights), not block, throw or heavy shares. Loaded and validated by src/ai/personalities.js.",
+  "personalities": {
+    "rusher": {
+      "summary": "Pressure and grabs: walks in, jabs instead of swinging heavies, throws a guarding opponent far more often, rarely waits or backs off.",
+      "scale": {
+        "aggression": 0.9,
+        "throw_chance": 1.5,
+        "wait_weight": 0.5,
+        "back_off_weight": 0.8,
+        "heavy_poke_share": 0.4
+      }
+    },
+    "turtle": {
+      "summary": "Shells up: guards pre-emptively in your range, blocks and whiff-punishes more, waits for you to commit rather than starting things.",
+      "scale": {
+        "guard_weight": 2.5,
+        "back_off_weight": 0.8,
+        "wait_weight": 1.3,
+        "block_chance": 1.5,
+        "whiff_punish_chance": 1.6,
+        "throw_chance": 0.8,
+        "special_share": 0.5
+      }
+    },
+    "trickster": {
+      "summary": "Spins around you: sidesteps in neutral and against attacks, mixes in specials and low pokes, presses a little harder than the default.",
+      "scale": {
+        "sidestep_weight": 2.2,
+        "sidestep_chance": 2.0,
+        "special_share": 2.5,
+        "low_poke_share": 1.6,
+        "guard_weight": 0.8,
+        "back_off_weight": 1.1,
+        "aggression": 1.25
+      }
+    },
+    "showboat": {
+      "summary": "Struts and swings big heavies, saves its Temper for an Overforge comeback when it is losing.",
+      "scale": {
+        "wait_weight": 2.6,
+        "heavy_poke_share": 3.0,
+        "low_poke_share": 0.2,
+        "special_share": 1.5,
+        "super_comeback_hp": 1.3,
+        "aggression": 1.2
+      },
+      "set": {
+        "super_punish_chance": 0,
+        "super_block_punish_chance": 0
+      }
+    }
+  }
+}
