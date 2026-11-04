@@ -2,7 +2,9 @@
 
 `@sarkhanrasullu/game-engine` is a small, data-driven engine for 3D one-on-one fighting games on
 the web. It provides a fixed-step loop, a deterministic two-fighter duel sim, a CPU pilot that
-plays through the same input snapshot as a human, and a keyboard/touch input layer.
+plays through the same input snapshot as a human, a keyboard/touch input layer, a three.js render
+pipeline (quality tiers, PMREM environment, bloom composer, fight camera, scene teardown), audio and
+haptics primitives, and never-throwing storage with a versioned save core.
 
 The engine holds no game data. A game builds a **ruleset** from its own tuning (JSON or anything
 else) and injects it into every factory. No module reads a config singleton, imports JSON, or names
@@ -16,11 +18,12 @@ or Node >= 22.12 consumes `src/` directly.
 Pin an exact tag. The lockfile records the resolved commit:
 
 ```sh
-npm install github:sarkhanrasullu/game-engine#v0.1.0
+npm install github:sarkhanrasullu/game-engine#v0.2.0
 ```
 
-`three` (`>=0.187.0 <0.188.0`) is a peer dependency, reserved for the upcoming `./render` subpath.
-None of the current subpaths import it.
+`three` (`>=0.187.0 <0.188.0`) is a peer dependency used only by `./render`. Install it in the game;
+the engine never bundles its own copy (add `resolve.dedupe: ['three']` in Vite when you link the engine
+locally).
 
 ## Usage
 
@@ -71,15 +74,19 @@ Every public function has a JSDoc `@example`. Read `src/<subpath>/index.js` for 
 | `./sim` | `createRuleset`, the rule, movement, move, round and meter builders and validators, the fighter state machine, combatant, movement, hurtboxes, code-keyed poses, `createDuel` / `stepDuel` (hit, block, throw, armour and meter resolution), frame data, `MatchFlow` (best-of-N rounds) |
 | `./ai` | `CpuPilot` (input-snapshot fairness model), delayed perception, `buildDifficultySet`, `buildPersonalities`, `ActionMix` |
 | `./input` | input snapshot, `InputState`, `DoubleTapDetector`, touch stick and buttons, `attachKeyboard`, handedness helpers. Tuning and key bindings are injected |
+| `./render` | `QUALITY_CONFIG` defaults, `QualityGovernor` / `resolveTiers` / `materialTierFor` / `canReachBloom`, `supportsHalfFloatTargets`, PMREM environment (`getHeroEnvironment`, `ENV_PANELS`) and bloom composer (`createHeroComposer`), `computeFraming`, `createCameraDirector`, `createRenderer` / `createScene` (stage, fighter view, lighting and feel injected; one `dispose()` teardown path). The quality storage key, bloom params, camera feel, framing and env panels are injectable |
+| `./audio` | SFX data schema (`buildSfxData` with an injected cue list, `validateLayer`, `dbToGain`), rate-limited `createHaptics` |
+| `./storage` | `createSettingsStorage` (never throws, memory fallback), versioned save core `createSave(store, {key, version, defaults, sanitize, migrations})` / `loadSave` |
 
 Inside the package, dependencies point one way: `ai -> sim -> core`, and `sim -> input` for the
-snapshot type only. The planned subpaths are `./render` (three.js), `./audio`, `./storage`, and a
-Blender asset pipeline.
+snapshot type only, `audio -> core`, and `render -> three` (+ `three/addons`). The Blender asset
+pipeline is planned as the last subpath.
 
 ## Development
 
 ```sh
-npm test            # node --test "test/**/*.test.js"; no install needed
+npm install         # dev-only: three (the ./render tests need it)
+npm test            # node --test "test/**/*.test.js"
 ```
 
 `test/fixtures/` holds frozen copies of a reference tuning set and a default-bound layer

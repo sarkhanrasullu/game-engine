@@ -11,7 +11,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = join(ROOT, 'src');
 
 /** Words that belong to a game built on the engine, never to the engine itself. */
-export const GAME_LEXICON = /molten|obduran|skadra|rivet|\bpell\b|caldera|nursery|\bwk\./i;
+export const GAME_LEXICON = /molten|obduran|skadra|rivet|\bpell\b|caldera|nursery|quenchwell|\bwk\./i;
 
 /** Bare specifiers the engine may import (peer dependencies). Everything else must be relative. */
 const ALLOWED_BARE = [/^three$/, /^three\/addons\//];
