@@ -13,13 +13,21 @@
  * UnrealBloomPass -> OutputPass; high only), `materialTier` the fighter material set ('physical' =
  * MeshPhysicalMaterial + clearcoat, 'standard' = MeshStandardMaterial, env map kept). The material tier
  * is read ONCE when a scene is built (no shader compiles mid-fight); at runtime the governor only
- * changes the pixel ratio and the bloom toggle.
+ * changes the pixel ratio, the bloom toggle and the grade toggle.
+ *
+ * Feature flags (game-feel audit LF-F21): `shadows` lets createScene's `shadows` option enable the
+ * real-time caster on that tier (read once at scene build, like materialTier); `grade` turns the
+ * composer's colour-grade pass on for that tier (needs createScene's `grade` params; runtime toggle).
+ * Both default to false (ADR-0001: no real-time shadows, ACES straight to sRGB), so the engine
+ * defaults render exactly as before. A tier is kept on a device when any of pixel ratio, bloom,
+ * materialTier, shadows or grade differs from the previous kept tier, so a DPR-1 phone still has
+ * three steps (bloom + physical -> physical -> standard).
  */
 export const QUALITY_CONFIG = Object.freeze({
   tiers: Object.freeze([
-    Object.freeze({ name: 'high', pixelRatio: 2, bloom: true, materialTier: 'physical' }),
-    Object.freeze({ name: 'medium', pixelRatio: 1.5, bloom: false, materialTier: 'physical' }),
-    Object.freeze({ name: 'low', pixelRatio: 1, bloom: false, materialTier: 'standard' }),
+    Object.freeze({ name: 'high', pixelRatio: 2, bloom: true, materialTier: 'physical', shadows: false, grade: false }),
+    Object.freeze({ name: 'medium', pixelRatio: 1.5, bloom: false, materialTier: 'physical', shadows: false, grade: false }),
+    Object.freeze({ name: 'low', pixelRatio: 1, bloom: false, materialTier: 'standard', shadows: false, grade: false }),
   ]),
   /**
    * High-tier bloom (art bible R2-5 / R2-8 item 8). threshold 1.0 so only HDR glow (> 1.0) blooms: lit

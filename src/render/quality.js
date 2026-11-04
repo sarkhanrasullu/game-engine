@@ -5,16 +5,26 @@
 import { QUALITY_CONFIG } from './quality-config.js';
 
 /**
- * Tiers that actually differ on this device: effective ratio = min(deviceDpr, tier cap); a tier
- * whose effective ratio equals the previous kept one is dropped (keeps the better-named tier). Each
- * kept tier carries its `bloom` and `materialTier`. Without half-float colour attachments
- * (`halfFloat: false`) every bloom tier is removed for the session (ADR-0001: the composer needs a
- * HalfFloatType render target).
- * @param {readonly {name:string,pixelRatio:number,bloom?:boolean,materialTier?:string}[]} tiers best first
+ * A configured tier resolved for one device: effective pixel ratio plus every feature flag as a
+ * boolean (missing flags read false, materialTier 'physical'), so older tier objects keep working.
+ * @typedef {{name:string, pixelRatio:number, bloom:boolean, materialTier:'physical'|'standard', shadows:boolean, grade:boolean}} ResolvedTier
+ */
+
+/** The flags a tier carries besides its pixel ratio; two tiers equal on all of them (and ratio) collapse. */
+const TIER_FLAGS = Object.freeze(['bloom', 'materialTier', 'shadows', 'grade']);
+
+/**
+ * Tiers that actually differ on this device: effective ratio = min(deviceDpr, tier cap); a tier is
+ * kept when its ratio drops below the previous kept tier's OR any feature flag (bloom, materialTier,
+ * shadows, grade) differs from it (LF-F21: a DPR-1 device keeps bloom -> physical -> standard steps);
+ * a tier identical in effect to the previous kept one is dropped (keeps the better-named tier).
+ * Without half-float colour attachments (`halfFloat: false`) every bloom tier is removed for the
+ * session (ADR-0001: the composer needs a HalfFloatType render target).
+ * @param {readonly {name:string,pixelRatio:number,bloom?:boolean,materialTier?:string,shadows?:boolean,grade?:boolean}[]} tiers best first
  * @param {number} deviceDpr window.devicePixelRatio
  * @param {{halfFloat?: boolean}} [caps] halfFloat: the device can render to half-float targets (default true)
- * @returns {{name:string,pixelRatio:number,bloom:boolean,materialTier:string}[]}
- * @example resolveTiers(QUALITY_CONFIG.tiers, 1.5) // [{high,1.5,bloom},{low,1}]
+ * @returns {ResolvedTier[]}
+ * @example resolveTiers(QUALITY_CONFIG.tiers, 1.5).map((t) => t.name) // ['high', 'medium', 'low'] (bloom and material still differ)
  * @example resolveTiers(QUALITY_CONFIG.tiers, 3, { halfFloat: false }).map((t) => t.name) // ['medium', 'low']
  */
 export function resolveTiers(tiers, deviceDpr, { halfFloat = true } = {}) {
@@ -22,10 +32,16 @@ export function resolveTiers(tiers, deviceDpr, { halfFloat = true } = {}) {
   const out = [];
   for (const t of tiers) {
     if (t.bloom && !halfFloat) continue;
-    const r = Math.min(dpr, t.pixelRatio);
-    if (out.length === 0 || r < out[out.length - 1].pixelRatio) {
-      out.push({ name: t.name, pixelRatio: r, bloom: t.bloom === true, materialTier: t.materialTier ?? 'physical' });
-    }
+    const next = {
+      name: t.name,
+      pixelRatio: Math.min(dpr, t.pixelRatio),
+      bloom: t.bloom === true,
+      materialTier: t.materialTier ?? 'physical',
+      shadows: t.shadows === true,
+      grade: t.grade === true,
+    };
+    const prev = out[out.length - 1];
+    if (!prev || next.pixelRatio < prev.pixelRatio || TIER_FLAGS.some((k) => next[k] !== prev[k])) out.push(next);
   }
   return out;
 }
@@ -64,7 +80,7 @@ export function canReachBloom(levels) {
 export class QualityGovernor {
   /**
    * @param {{deviceDpr:number, storage?:{get(k:string):string|null,set(k:string,v:string):void}|null,
-   *   onChange?:(tier:{name:string,pixelRatio:number,bloom:boolean,materialTier:string})=>void,
+   *   onChange?:(tier:ResolvedTier)=>void,
    *   forced?:string|null, config?:typeof QUALITY_CONFIG, halfFloat?: boolean}} opts
    *   forced: a tier name that pins the tier (no adaptation, nothing persisted), e.g. from ?quality=
    *   halfFloat: false removes the bloom tier(s) for the session (no half-float render targets)
@@ -93,18 +109,28 @@ export class QualityGovernor {
     this.probeAge = -1;
   }
 
-  /** Current tier {name, pixelRatio, bloom, materialTier}. */
+  /** Current tier {name, pixelRatio, bloom, materialTier, shadows, grade} (a ResolvedTier). */
   get tier() {
     return this.levels[this.level];
   }
 
-  /** Level index for a configured tier name (mapped through resolveTiers), or -1. */
+  /**
+   * Level index for a configured tier name, or -1 for an unknown name. A configured tier that
+   * collapsed into a kept neighbour (same effect on this device) maps to the kept tier it merged
+   * into: the last kept tier at or above it in config order; a tier removed for the session (bloom
+   * without half-float) maps to the first kept tier below it.
+   */
   indexOf(name) {
-    const t = this.cfg.tiers.find((x) => x.name === name);
-    if (!t) return -1;
-    const r = Math.min(this.levels[0].pixelRatio, t.pixelRatio);
-    for (let i = 0; i < this.levels.length; i++) if (this.levels[i].pixelRatio <= r) return i;
-    return this.levels.length - 1;
+    const tiers = this.cfg.tiers;
+    const want = tiers.findIndex((x) => x.name === name);
+    if (want < 0) return -1;
+    let best = -1;
+    for (let i = 0; i < this.levels.length; i++) {
+      const at = tiers.findIndex((x) => x.name === this.levels[i].name);
+      if (at <= want) best = i;
+      else if (best < 0) return i;
+    }
+    return best < 0 ? this.levels.length - 1 : best;
   }
 
   /**

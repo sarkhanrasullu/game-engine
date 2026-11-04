@@ -97,3 +97,12 @@ test('boundary_metadataDocsAndTests_nameNoGame', () => {
   const v = files.flatMap((f) => findViolations(readFileSync(f, 'utf8'), f, null));
   assert.deepEqual(v, []);
 });
+
+test('boundary_blenderPipeline_namesNoGame', () => {
+  // blender/ holds Python, shell and .mjs files: the lexicon scan applies, the import rules do not
+  // (compress.mjs resolves the consumer's pinned encoders by design).
+  const files = walk(join(ROOT, 'blender')).filter((f) => /\.(py|mjs|sh|txt|md)$/.test(f));
+  assert.ok(files.length > 0, 'no blender pipeline files found');
+  const v = files.flatMap((f) => findViolations(readFileSync(f, 'utf8'), f, null));
+  assert.deepEqual(v, []);
+});

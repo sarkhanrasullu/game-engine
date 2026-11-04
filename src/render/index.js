@@ -10,6 +10,7 @@ export * from './pipeline.js';
 export * from './framing.js';
 export * from './camera-director.js';
 export * from './scene.js';
+export * from './lights.js';
 export * from './rig.js';
 export * from './skin.js';
 export * from './geo.js';

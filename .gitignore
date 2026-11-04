@@ -4,3 +4,6 @@ coverage/
 .DS_Store
 *.tgz
 graphify-out/cache/
+# Python bytecode from blender/lib when a consumer runs the asset pipeline
+__pycache__/
+*.pyc

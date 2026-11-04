@@ -3,13 +3,17 @@
 // game injects the stage factory, the fighter-view factory and its look constants (lighting, feel)
 // through createScene's options (ADR-0004); ADR-0001 adds the PMREM env and the tiered bloom composer
 // (pipeline.js). Bloom parameters, camera feel, framing and env panels default to the engine's tuning
-// and can be injected the same way.
+// and can be injected the same way. Game-feel audit hooks (docs/render-hooks.md): a `lights` rig
+// factory, a `shadows` caster, a `grade` pass on the composer path, camera impulse/focus/roll from the
+// director and a per-frame `state` passed through to the light rig. Every hook is off unless its
+// option is given, and the output is then identical to the version before the hooks.
 import * as THREE from 'three';
 import { computeFraming } from './framing.js';
 import { createCameraDirector } from './camera-director.js';
 import { createHeroComposer, disposeHeroEnvironment, getHeroEnvironment } from './pipeline.js';
 import { QUALITY_CONFIG } from './quality-config.js';
 import { materialTierFor } from './quality.js';
+import { SHADOW_DEFAULTS, configureShadowCaster, createDefaultLightRig, setShadowFlag } from './lights.js';
 
 /** Default maximum device pixel ratio; caps fill-rate cost on high-DPI phones (quality.js tiers lower it). */
 const MAX_PIXEL_RATIO = 2;
@@ -60,18 +64,25 @@ export function createRenderer(container, opts = {}) {
  *   // pairing change: build the next view, then view.dispose();
  * @param {HTMLElement} container
  * @param {any[]} specs the game's fighter specs, index = fighter id (passed through to createFighterView)
- * @param {{tier?: {name:string,pixelRatio:number,bloom?:boolean,materialTier?:string}, bloomCapable?: boolean,
+ * @param {{tier?: {name:string,pixelRatio:number,bloom?:boolean,materialTier?:string,shadows?:boolean,grade?:boolean}, bloomCapable?: boolean,
  *   pixelRatio?: number, reducedMotion?: boolean, renderer?: THREE.WebGLRenderer,
  *   stageAssets?: any, createStage: (scene: THREE.Scene, stageAssets: any) => {update(dt:number):void, dispose():void},
  *   createFighterView: (spec: any, scene: THREE.Scene, viewOpts: {alt: boolean, hero: object}) => any,
  *   lighting: {key:{color:number,intensity:number,position:number[]}, front:object, rim:object,
  *     fill:{sky:number,ground:number,intensity:number}}, feel: {squash: Record<string, {strength:number,holdMs:number}>, koHoldMs:number},
- *   bloomParams?: typeof QUALITY_CONFIG.bloomParams, cameraFeel?: object, framing?: object, envPanels?: object}} opts
+ *   bloomParams?: typeof QUALITY_CONFIG.bloomParams, cameraFeel?: object, framing?: object, envPanels?: object,
+ *   lights?: (scene: THREE.Scene, o: {lighting: object, tier: object|null}) => {update?(dt:number, state:any):void, setMood?(name:string):void, dispose():void},
+ *   shadows?: Partial<typeof SHADOW_DEFAULTS>, grade?: object|null}} opts
  *   createStage / createFighterView / lighting / feel: the game's stage, fighter view and look constants.
  *   bloomParams / cameraFeel / framing / envPanels: optional overrides of QUALITY_CONFIG.bloomParams,
  *   CAMERA_FEEL, FRAMING_CONFIG and ENV_PANELS (the engine defaults when omitted).
- *   tier: the governor's current tier (pixel ratio, bloom, material tier; the material tier is read
- *   once here). bloomCapable: some tier of this device uses bloom, so build and prewarm the composer.
+ *   tier: the governor's current tier (pixel ratio, bloom, material tier, shadows, grade; material
+ *   tier and shadows are read once here). bloomCapable: some tier of this device uses bloom, so build
+ *   and prewarm the composer.
+ *   lights: light-rig factory (default createDefaultLightRig); its update(dt, state) runs every frame
+ *   with the `state` the game passes to view.render. shadows: real-time caster (SHADOW_DEFAULTS keys;
+ *   active only with enabled: true AND tier.shadows !== false). grade: GRADE_DEFAULTS-shaped params
+ *   for the composer's grade pass (runs on the bloom path when tier.grade !== false).
  */
 export function createScene(container, specs, opts) {
   const { lighting: LIGHTING, feel: FEEL, createFighterView } = opts;
@@ -85,15 +96,27 @@ export function createScene(container, specs, opts) {
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(VFOV, container.clientWidth / container.clientHeight, 0.1, 100);
 
-  // Art bible §5 lights: hemisphere fill + warm key high front-left; no ambient.
-  scene.add(new THREE.HemisphereLight(LIGHTING.fill.sky, LIGHTING.fill.ground, LIGHTING.fill.intensity));
-  const lamp = new THREE.DirectionalLight(LIGHTING.key.color, LIGHTING.key.intensity);
-  lamp.position.set(...LIGHTING.key.position);
-  scene.add(lamp);
-  for (const l of [LIGHTING.front, LIGHTING.rim]) {
-    const d = new THREE.DirectionalLight(l.color, l.intensity);
-    d.position.set(...l.position);
-    scene.add(d);
+  // Art bible §5 lights: hemisphere fill + warm key high front-left; no ambient. The game may swap
+  // the rig (LF-F13); the default is the built-in one.
+  const lightRig = (opts.lights ?? createDefaultLightRig)(scene, { lighting: LIGHTING, tier: opts.tier ?? null });
+
+  // Real-time shadow caster (LF-F17): off unless asked for AND allowed by the tier; fixed for the
+  // life of the view (toggling recompiles every receiving material), like the material tier.
+  const shadowCfg = opts.shadows ? { ...SHADOW_DEFAULTS, ...opts.shadows } : null;
+  const shadowsOn = shadowCfg !== null && shadowCfg.enabled === true && opts.tier?.shadows !== false;
+  let shadowCaster = null;
+  let ownCaster = null;
+  let shadowRestore = null;
+  if (shadowsOn) {
+    const named = shadowCfg.caster !== 'own' ? lightRig[shadowCfg.caster] : null;
+    if (named && named.isDirectionalLight) shadowCaster = named;
+    else {
+      ownCaster = new THREE.DirectionalLight(0xffffff, shadowCfg.ownIntensity);
+      ownCaster.position.set(shadowCfg.offset[0], shadowCfg.offset[1], shadowCfg.offset[2]);
+      scene.add(ownCaster);
+      shadowCaster = ownCaster;
+    }
+    shadowRestore = configureShadowCaster(renderer, shadowCaster, scene, shadowCfg);
   }
 
   const stage = opts.createStage(scene, opts.stageAssets ?? null);
@@ -105,7 +128,7 @@ export function createScene(container, specs, opts) {
   const views = specs.map((spec, i) => createFighterView(spec, scene, { alt: i === 1 && specs[0].id === spec.id, hero }));
 
   const rig = { x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0 };
-  const cam = { x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0 };
+  const cam = { x: 0, y: 0, z: 0, lx: 0, ly: 0, lz: 0, roll: 0 };
   const director = createCameraDirector({ vfovDeg: VFOV, reducedMotion, cfg: opts.cameraFeel });
   let holdLeft = 0;
 
@@ -153,7 +176,8 @@ export function createScene(container, specs, opts) {
   window.addEventListener('orientationchange', resize);
   resize();
   if (opts.bloomCapable === true) {
-    post = createHeroComposer(renderer, scene, camera, opts.bloomParams ?? QUALITY_CONFIG.bloomParams);
+    post = createHeroComposer(renderer, scene, camera, opts.bloomParams ?? QUALITY_CONFIG.bloomParams, opts.grade ?? null);
+    post.setGradeEnabled(opts.tier?.grade !== false);
     resize();
   }
 
@@ -161,15 +185,18 @@ export function createScene(container, specs, opts) {
    * Draw interpolated state. alpha in [0,1).
    * @param {{applyCamera:(camera:THREE.Camera)=>void}} [fx] optional post-framing camera hook (hit shake)
    * @param {number} [dt] seconds since the last render (animation clock; 0 = hold)
+   * @param {any} [state] the game's per-frame presentation state, passed unchanged to the light rig's
+   *   update(dt, state) (see docs/render-hooks.md for the suggested shape; reuse one object per frame)
+   * @example view.render(p1, p2, alpha, fx, dt, frameState);
    */
-  function render(f1, f2, alpha, fx, dt = 0) {
-    pose(f1, f2, alpha, fx, dt);
+  function render(f1, f2, alpha, fx, dt = 0, state = null) {
+    pose(f1, f2, alpha, fx, dt, state);
     if (bloomOn && post) post.render(dt);
     else renderer.render(scene, camera);
   }
 
   /** Update stage, fighters and camera for this frame (everything render does except the draw). */
-  function pose(f1, f2, alpha, fx, dt) {
+  function pose(f1, f2, alpha, fx, dt, state = null) {
     if (holdLeft > 0) {
       holdLeft -= dt * 1000;
       if (holdLeft <= 0) {
@@ -186,11 +213,39 @@ export function createScene(container, specs, opts) {
         if (v.flags.koPop) fx.koBurst(v.root.position.x, FLOOR_Y, v.root.position.z);
       }
     }
+    if (shadowCaster && shadowCfg.follow) {
+      const mx = (p1.x + p2.x) * 0.5;
+      const mz = (p1.z + p2.z) * 0.5;
+      shadowCaster.position.set(mx + shadowCfg.offset[0], shadowCfg.offset[1], mz + shadowCfg.offset[2]);
+      shadowCaster.target.position.set(mx, FLOOR_Y, mz);
+    }
+    if (lightRig.update) lightRig.update(dt, state);
     computeFraming(p1.x, p1.z, p2.x, p2.z, VFOV, camera.aspect, rig, opts.framing);
     director.update(dt * 1000, rig, Math.hypot(p2.x - p1.x, p2.z - p1.z), camera.aspect, cam);
     camera.position.set(cam.x, cam.y, cam.z);
     camera.lookAt(cam.lx, cam.ly, cam.lz);
+    if (cam.roll !== 0) camera.rotateZ(cam.roll);
     if (fx) fx.applyCamera(camera);
+  }
+
+  /**
+   * Mark every mesh under `root` as a shadow caster (fighter roots). No-op while shadows are off for
+   * this view, so flags never change a shader program on the default path. Call before prewarm.
+   * @param {THREE.Object3D} root @param {boolean} [on]
+   * @example for (const v of view.views) view.setShadowCaster(v.root);
+   */
+  function setShadowCaster(root, on = true) {
+    if (shadowsOn) setShadowFlag(root, 'castShadow', on);
+  }
+
+  /**
+   * Mark every mesh under `root` as a shadow receiver (the stage floor or a ShadowMaterial catcher).
+   * No-op while shadows are off for this view. Note MeshBasicMaterial never receives shadows.
+   * @param {THREE.Object3D} root @param {boolean} [on]
+   * @example view.setShadowReceiver(catcherDisc);
+   */
+  function setShadowReceiver(root, on = true) {
+    if (shadowsOn) setShadowFlag(root, 'receiveShadow', on);
   }
 
   /**
@@ -223,14 +278,16 @@ export function createScene(container, specs, opts) {
   }
 
   /**
-   * Apply a quality tier (quality.js onChange): the pixel-ratio cap and the bloom toggle. The material
-   * tier is fixed at creation and never changes here (no shader compiles mid-fight).
+   * Apply a quality tier (quality.js onChange): the pixel-ratio cap, the bloom toggle and the grade
+   * toggle. The material tier and the shadow caster are fixed at creation and never change here (no
+   * shader compiles mid-fight).
    * @example governor.onChange = (tier) => view.setQualityTier(tier);
-   * @param {{pixelRatio:number, bloom?: boolean}} tier
+   * @param {{pixelRatio:number, bloom?: boolean, grade?: boolean}} tier
    */
   function setQualityTier(tier) {
     ratioCap = Math.min(tier.pixelRatio, MAX_PIXEL_RATIO);
     bloomOn = tier.bloom === true && post !== null;
+    if (post) post.setGradeEnabled(tier.grade !== false);
     resize();
   }
 
@@ -246,6 +303,10 @@ export function createScene(container, specs, opts) {
   const programs = () => (renderer.info.programs ? renderer.info.programs.length : 0);
   /** Whether the bloom composer is the active render path (high tier). */
   const bloomActive = () => bloomOn && post !== null;
+  /** Whether the grade pass runs this frame (composer path, grade params given, tier allows it). */
+  const gradeActive = () => bloomActive() && post.grade !== null && post.grade.enabled === true;
+  /** Whether this view renders real-time shadows (fixed at creation). */
+  const shadowsActive = () => shadowsOn;
 
   let disposed = false;
   /**
@@ -263,6 +324,13 @@ export function createScene(container, specs, opts) {
     for (const v of views) v.dispose();
     if (post) post.dispose();
     stage.dispose();
+    if (shadowRestore) shadowRestore.restore();
+    if (ownCaster) {
+      scene.remove(ownCaster.target);
+      scene.remove(ownCaster);
+      ownCaster.dispose();
+    }
+    lightRig.dispose();
     scene.traverse((o) => { if (o.isLight && typeof o.dispose === 'function') o.dispose(); });
     scene.clear();
     if (ownsRenderer) {
@@ -275,5 +343,6 @@ export function createScene(container, specs, opts) {
   return {
     render, prewarm, setQualityTier, resize, scene, camera, drawCalls, memory, programs, bloomActive, dispose, views, stage,
     bodies: views.map((v) => v.flashMesh), onEvent, finalKo, resetFeel, director, reducedMotion,
+    lights: lightRig, setShadowCaster, setShadowReceiver, shadowsActive, gradeActive, post,
   };
 }

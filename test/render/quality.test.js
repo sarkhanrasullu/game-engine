@@ -11,10 +11,60 @@ const feed = (q, ms, totalMs) => {
   return changed;
 };
 
-test('tiers collapse to distinct effective pixel ratios per device', () => {
+test('tiers collapse only when pixel ratio AND every feature flag match the previous kept tier', () => {
   assert.deepEqual(resolveTiers(QUALITY_CONFIG.tiers, 3).map((t) => t.pixelRatio), [2, 1.5, 1]);
-  assert.deepEqual(resolveTiers(QUALITY_CONFIG.tiers, 1.5).map((t) => t.name), ['high', 'low']);
-  assert.equal(resolveTiers(QUALITY_CONFIG.tiers, 1).length, 1);
+  // LF-F21: at DPR 1.5 high and medium share the ratio but differ on bloom; at DPR 1 all three share
+  // the ratio and still differ (bloom, then material), so a DPR-1 phone keeps three steps.
+  assert.deepEqual(resolveTiers(QUALITY_CONFIG.tiers, 1.5).map((t) => [t.name, t.pixelRatio]), [['high', 1.5], ['medium', 1.5], ['low', 1]]);
+  assert.deepEqual(resolveTiers(QUALITY_CONFIG.tiers, 1).map((t) => t.name), ['high', 'medium', 'low']);
+  // identical tiers (ratio-only configs, the pre-flag schema) still collapse
+  const ratioOnly = [{ name: 'a', pixelRatio: 2 }, { name: 'b', pixelRatio: 1.5 }, { name: 'c', pixelRatio: 1 }];
+  assert.deepEqual(resolveTiers(ratioOnly, 1).map((t) => t.name), ['a']);
+  assert.deepEqual(resolveTiers(ratioOnly, 1.5).map((t) => t.name), ['a', 'c']);
+});
+
+test('resolveTiers resolves shadows and grade flags to booleans, false when absent (backward compatible)', () => {
+  const t = resolveTiers(QUALITY_CONFIG.tiers, 3);
+  assert.deepEqual(t.map((x) => [x.shadows, x.grade]), [[false, false], [false, false], [false, false]]);
+  const legacy = resolveTiers([{ name: 'high', pixelRatio: 2, bloom: true }, { name: 'low', pixelRatio: 1 }], 3);
+  assert.deepEqual(legacy, [
+    { name: 'high', pixelRatio: 2, bloom: true, materialTier: 'physical', shadows: false, grade: false },
+    { name: 'low', pixelRatio: 1, bloom: false, materialTier: 'physical', shadows: false, grade: false },
+  ]);
+});
+
+test('a tier that differs only by shadows or grade is kept, and the governor steps through it', () => {
+  const tiers = [
+    { name: 'ultra', pixelRatio: 2, bloom: true, materialTier: 'physical', shadows: true, grade: true },
+    { name: 'high', pixelRatio: 2, bloom: true, materialTier: 'physical' },
+    { name: 'low', pixelRatio: 1, bloom: false, materialTier: 'standard' },
+  ];
+  assert.deepEqual(resolveTiers(tiers, 1).map((t) => t.name), ['ultra', 'high', 'low']);
+  const config = { ...QUALITY_CONFIG, tiers };
+  const seen = [];
+  const q = new QualityGovernor({ deviceDpr: 1, config, onChange: (t) => seen.push([t.name, t.shadows, t.grade]) });
+  assert.deepEqual([q.tier.name, q.tier.shadows, q.tier.grade], ['ultra', true, true]);
+  feed(q, 33.3, 1500);
+  assert.deepEqual(seen, [['high', false, false]]);
+});
+
+test('forced tier at DPR 1 pins the named tier (LF-F21: ?quality=low no longer renders high)', () => {
+  const low = new QualityGovernor({ deviceDpr: 1, forced: 'low' });
+  assert.deepEqual([low.tier.name, low.tier.bloom, low.tier.materialTier], ['low', false, 'standard']);
+  const medium = new QualityGovernor({ deviceDpr: 1, forced: 'medium' });
+  assert.deepEqual([medium.tier.name, medium.tier.bloom], ['medium', false]);
+});
+
+test('indexOf maps a collapsed or removed tier to the kept tier it merged into', () => {
+  const ratioOnly = [{ name: 'a', pixelRatio: 2 }, { name: 'b', pixelRatio: 1.5 }, { name: 'c', pixelRatio: 1 }];
+  const q = new QualityGovernor({ deviceDpr: 1.5, config: { ...QUALITY_CONFIG, tiers: ratioOnly } });
+  assert.deepEqual(q.levels.map((t) => t.name), ['a', 'c']);
+  assert.equal(q.indexOf('b'), 0, 'b collapsed into a');
+  assert.equal(q.indexOf('c'), 1);
+  assert.equal(q.indexOf('nope'), -1);
+  const noHalf = new QualityGovernor({ deviceDpr: 3, halfFloat: false });
+  assert.equal(noHalf.indexOf('high'), 0, 'removed bloom tier maps to the first kept tier below it (medium)');
+  assert.equal(noHalf.indexOf('low'), 1);
 });
 
 test('steps down one tier after a sustained slow average, not on a lone hitch', () => {
@@ -80,8 +130,8 @@ test('resolveTiers carries bloom and materialTier to the kept tiers', () => {
   const t = resolveTiers(QUALITY_CONFIG.tiers, 3);
   assert.deepEqual(t.map((x) => [x.name, x.bloom, x.materialTier]), [['high', true, 'physical'], ['medium', false, 'physical'], ['low', false, 'standard']]);
   const dpr15 = resolveTiers(QUALITY_CONFIG.tiers, 1.5);
-  assert.deepEqual(dpr15.map((x) => x.name), ['high', 'low']);
-  assert.equal(dpr15[0].bloom, true);
+  assert.deepEqual(dpr15.map((x) => x.name), ['high', 'medium', 'low'], 'LF-F21: medium kept (bloom differs) despite the shared ratio');
+  assert.deepEqual(dpr15.map((x) => x.bloom), [true, false, false]);
 });
 
 test('no half-float render targets: the bloom tier is removed for the session', () => {

@@ -78,9 +78,33 @@ Every public function has a JSDoc `@example`. Read `src/<subpath>/index.js` for 
 | `./audio` | SFX data schema (`buildSfxData` with an injected cue list, `validateLayer`, `dbToGain`), rate-limited `createHaptics` |
 | `./storage` | `createSettingsStorage` (never throws, memory fallback), versioned save core `createSave(store, {key, version, defaults, sanitize, migrations})` / `loadSave` |
 
+| `./tools/*` | Build tools: `check-bundle-size.mjs`, `hero-lite.mjs`, `vite-hero-assets.mjs` (asset sets and limits injected) |
+| `./blender/*` | The headless Blender asset pipeline (below) |
+
 Inside the package, dependencies point one way: `ai -> sim -> core`, and `sim -> input` for the
-snapshot type only, `audio -> core`, and `render -> three` (+ `three/addons`). The Blender asset
-pipeline is planned as the last subpath.
+snapshot type only, `audio -> core`, and `render -> three` (+ `three/addons`).
+
+### Blender asset pipeline (`./blender/*`)
+
+Headless Blender (`bpy`, pinned in `blender/requirements.txt`) models and bakes each asset from a
+seeded Python script; Node compresses the export to glTF with meshopt geometry and KTX2 textures and
+writes a manifest entry with a source hash, so a `node --test` gate can catch a stale export without
+Blender. The engine ships the pipeline (`run.mjs`, `setup.sh`, `build.py`, `compress.mjs`,
+`source-hash.mjs`, `glb-contract.mjs`, `rig-contract.mjs`, `lib/`, three `smoke/` assets) and no asset
+data: a game declares its folders, venv and proportions provider in a `blender.config.mjs` (keys and
+defaults in `blender/config.mjs`) and keeps its own `<kind>/<id>.py` scripts and hero data next to it.
+
+```sh
+# package.json of a game
+"art:setup": "node node_modules/@sarkhanrasullu/game-engine/blender/run.mjs --config tools/blender/blender.config.mjs --setup",
+"art:build": "node node_modules/@sarkhanrasullu/game-engine/blender/run.mjs --config tools/blender/blender.config.mjs"
+```
+
+The encoder packages (`@gltf-transform/*`, `ktx2-encoder`, `meshoptimizer`, `sharp`) are the game's
+pinned devDependencies and are resolved from the game's root; their versions are part of the source
+hash. `lib.hardsurface` material names, `lib.pbr` presets and the hero -> fighter map are parameters the
+game's scripts pass in. Both trees (engine `blender/` and the game's scripts folder) are hashed under
+the logical name `tools/blender/<path>`, so a byte-for-byte move between them keeps every recorded hash.
 
 ## Development
 

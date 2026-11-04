@@ -4,13 +4,101 @@
 // Verified against node_modules/three/src (r187): PMREMGenerator.fromScene(scene, sigma, near, far,
 // {size}), EffectComposer(renderer, renderTarget) / setPixelRatio / setSize / render / dispose,
 // RenderPass, UnrealBloomPass(resolution, strength, radius, threshold) which halves the buffer for its
-// first mip, OutputPass (reads renderer tone mapping + exposure), WebGLRenderTarget {type, samples}.
+// first mip, OutputPass (reads renderer tone mapping + exposure), WebGLRenderTarget {type, samples},
+// ShaderPass(shader, textureID) cloning the shader's uniforms, EffectComposer.render marking the last
+// enabled pass renderToScreen each frame (a disabled grade pass hands the screen back to OutputPass),
+// EffectComposer.dispose freeing its targets and copy pass only (added passes are disposed here).
 import * as THREE from 'three';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { QUALITY_CONFIG } from './quality-config.js';
+
+/**
+ * Neutral colour grade (output identical to no grade). lift/gamma/gain per channel in display (sRGB)
+ * space after tone mapping: out = pow(gain * (c + lift * (1 - c)), 1 / gamma); saturation 1 = as is;
+ * vignette strength 0 = none (radius: where the darkening starts, softness: how far it ramps, both in
+ * UV distance from the centre).
+ */
+export const GRADE_DEFAULTS = Object.freeze({
+  lift: Object.freeze([0, 0, 0]),
+  gamma: Object.freeze([1, 1, 1]),
+  gain: Object.freeze([1, 1, 1]),
+  saturation: 1,
+  vignette: Object.freeze({ strength: 0, radius: 0.7, softness: 0.5 }),
+});
+
+/** One full-screen pass: lift/gamma/gain, saturation, radial vignette. ~6 ALU ops and one texture read per pixel. */
+const GRADE_SHADER = Object.freeze({
+  name: 'EngineGradeShader',
+  uniforms: {
+    tDiffuse: { value: null },
+    uLift: { value: new THREE.Vector3(0, 0, 0) },
+    uInvGamma: { value: new THREE.Vector3(1, 1, 1) },
+    uGain: { value: new THREE.Vector3(1, 1, 1) },
+    uSaturation: { value: 1 },
+    uVignette: { value: new THREE.Vector3(0, 0.7, 0.5) },
+  },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: /* glsl */ `
+    uniform sampler2D tDiffuse;
+    uniform vec3 uLift;
+    uniform vec3 uInvGamma;
+    uniform vec3 uGain;
+    uniform float uSaturation;
+    uniform vec3 uVignette;
+    varying vec2 vUv;
+    void main() {
+      vec4 tex = texture2D(tDiffuse, vUv);
+      vec3 c = uGain * (tex.rgb + uLift * (1.0 - tex.rgb));
+      c = pow(max(c, vec3(0.0)), uInvGamma);
+      float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
+      c = mix(vec3(l), c, uSaturation);
+      float d = distance(vUv, vec2(0.5));
+      c *= 1.0 - uVignette.x * smoothstep(uVignette.y, uVignette.y + uVignette.z, d);
+      gl_FragColor = vec4(c, tex.a);
+    }`,
+});
+
+/**
+ * Write grade parameters into a grade pass's uniforms (missing keys keep GRADE_DEFAULTS). Allocation-free.
+ * @param {ShaderPass} pass a createGradePass result
+ * @param {Partial<typeof GRADE_DEFAULTS>} params
+ * @example applyGrade(post.grade, { saturation: 1.05, vignette: { strength: 0.25 } });
+ */
+export function applyGrade(pass, params) {
+  const u = pass.uniforms;
+  const p = params ?? GRADE_DEFAULTS;
+  const lift = p.lift ?? GRADE_DEFAULTS.lift;
+  const gamma = p.gamma ?? GRADE_DEFAULTS.gamma;
+  const gain = p.gain ?? GRADE_DEFAULTS.gain;
+  const v = p.vignette ?? GRADE_DEFAULTS.vignette;
+  u.uLift.value.set(lift[0], lift[1], lift[2]);
+  u.uInvGamma.value.set(1 / gamma[0], 1 / gamma[1], 1 / gamma[2]);
+  u.uGain.value.set(gain[0], gain[1], gain[2]);
+  u.uSaturation.value = p.saturation ?? GRADE_DEFAULTS.saturation;
+  u.uVignette.value.set(v.strength ?? GRADE_DEFAULTS.vignette.strength, v.radius ?? GRADE_DEFAULTS.vignette.radius, v.softness ?? GRADE_DEFAULTS.vignette.softness);
+}
+
+/**
+ * The final colour-grade pass (lift/gamma/gain, saturation, vignette) for the composer path. Place it
+ * after OutputPass: it works on display-referred sRGB values. No LUT textures; one fullscreen quad.
+ * @param {Partial<typeof GRADE_DEFAULTS>} [params]
+ * @returns {ShaderPass}
+ * @example const grade = createGradePass({ lift: [0.015, 0.008, 0.006], saturation: 1.05 }); composer.addPass(grade);
+ */
+export function createGradePass(params = GRADE_DEFAULTS) {
+  const pass = new ShaderPass(GRADE_SHADER);
+  applyGrade(pass, params);
+  return pass;
+}
 
 /**
  * Arena environment panels (art bible R2-5). dir = direction from the origin, size = angular width and
@@ -114,10 +202,16 @@ export function disposeHeroEnvironment(renderer) {
  * reach the bloom tier. The target and the bloom mips are allocated lazily on the first render.
  * @param {THREE.WebGLRenderer} renderer @param {THREE.Scene} scene @param {THREE.Camera} camera
  * @param {typeof QUALITY_CONFIG.bloomParams} [params]
- * @returns {{composer: EffectComposer, bloom: UnrealBloomPass, setSize: (w:number,h:number,ratio:number)=>void, sceneCalls: ()=>number, render: (dt:number)=>void, dispose: ()=>void}}
+ * @param {Partial<typeof GRADE_DEFAULTS>|null} [grade] colour grade appended after OutputPass; null/omitted = no
+ *   grade pass at all (output identical to before)
+ * @returns {{composer: EffectComposer, bloom: UnrealBloomPass, grade: ShaderPass|null, setSize: (w:number,h:number,ratio:number)=>void,
+ *   setGrade: (params: Partial<typeof GRADE_DEFAULTS>) => void, setGradeEnabled: (on: boolean) => void,
+ *   sceneCalls: ()=>number, render: (dt:number)=>void, dispose: ()=>void}}
  * @example const post = createHeroComposer(renderer, scene, camera); post.render(dt);
+ * @example const graded = createHeroComposer(renderer, scene, camera, undefined, { saturation: 1.05, vignette: { strength: 0.2 } });
+ *   graded.setGradeEnabled(tier.grade); // the governor's tier flag
  */
-export function createHeroComposer(renderer, scene, camera, params = QUALITY_CONFIG.bloomParams) {
+export function createHeroComposer(renderer, scene, camera, params = QUALITY_CONFIG.bloomParams, grade = null) {
   const size = renderer.getSize(new THREE.Vector2());
   const ratio = renderer.getPixelRatio();
   const target = new THREE.WebGLRenderTarget(size.x * ratio, size.y * ratio, { type: THREE.HalfFloatType, samples: params.samples });
@@ -133,14 +227,26 @@ export function createHeroComposer(renderer, scene, camera, params = QUALITY_CON
   composer.addPass(renderPass);
   const bloom = new UnrealBloomPass(new THREE.Vector2(size.x * ratio, size.y * ratio), params.strength, params.radius, params.threshold);
   composer.addPass(bloom);
-  composer.addPass(new OutputPass());
+  const output = new OutputPass();
+  composer.addPass(output);
+  const gradePass = grade ? createGradePass(grade) : null;
+  if (gradePass) composer.addPass(gradePass);
   return {
     composer,
     bloom,
+    grade: gradePass,
     /** Match the renderer's CSS size and pixel ratio. */
     setSize(w, h, pixelRatio) {
       composer.setPixelRatio(pixelRatio);
       composer.setSize(w, h);
+    },
+    /** Retune the grade (no-op without a grade pass). Allocation-free. */
+    setGrade(p) {
+      if (gradePass) applyGrade(gradePass, p);
+    },
+    /** Toggle the grade pass (no-op without one); off hands the screen back to OutputPass. */
+    setGradeEnabled(on) {
+      if (gradePass) gradePass.enabled = on === true;
     },
     /** Draw calls of the scene pass of the last frame (renderer.info only keeps the final pass). */
     sceneCalls: () => sceneCalls,
@@ -148,8 +254,12 @@ export function createHeroComposer(renderer, scene, camera, params = QUALITY_CON
     render(dt) {
       composer.render(dt);
     },
+    /** Free the composer targets and every pass (EffectComposer.dispose frees only its own). */
     dispose() {
       composer.dispose();
+      bloom.dispose();
+      output.dispose();
+      if (gradePass) gradePass.dispose();
     },
   };
 }

@@ -2,6 +2,50 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
+## 0.3.0 (2026-11-05)
+
+The extraction is complete (ADR-0004 ENG-07d) and the engine gains the hooks a premium fight needs:
+render feel, light moods, grading, shadows, tier flags, and a sample-bank audio layer with an offline
+renderer. Nothing in this release changes a consumer's output until it opts in.
+
+- `./blender/*` (new): the headless Blender asset pipeline — `run.mjs`, `setup.sh`, `build.py`,
+  `compress.mjs`, `source-hash.mjs`, `glb-contract.mjs`, `rig-contract.mjs`, `lib/` (scene, bake,
+  material, hardsurface, pbr, armature, export, turntable) and three `smoke/` assets. A consumer
+  supplies `blender.config.mjs` (`root`, `kinds`, `scriptsDir`, `buildDir`, `evidenceDir`, `venv`,
+  `python`, `niceness`, `generator`, `proportions`, `proportionsFor`) via `run.mjs --config`. No
+  consumer data in the lib: `armature.fighter_entry` takes a fighter id, `hardsurface` material names
+  come from a `materials=` dict (the fastener helper is now `fasteners`), `pbr.compose` requires `presets=`
+  (`pbr.preset`). Source hashing covers both trees under the logical name `tools/blender/<path>`
+  (A7.7); encoders resolve from the consumer root (the engine keeps zero runtime deps); `setup.sh`
+  env is neutral (`ASSET_PIPELINE_VENV/_PYTHON/_BPY_VERSION/_ROOT`), bpy version from
+  `requirements.txt`. Tests: `test/blender/` (rig contract on a synthetic fixture, source-hash,
+  config); the boundary scan covers `blender/`.
+- `./render`: `createCameraDirector` gains `impulse()` / `shake()` (whole-frame damped oscillation,
+  per-call Hz, optional roll, 4-slot pool, reduced-motion scale) and `focus()` / `release()` (blend
+  the look-at toward a point, lower, dolly, release); `update()` writes `out.roll`, applied by
+  `createScene`. `createScene` accepts a `lights` rig factory (`createDefaultLightRig` exported as
+  the extendable built-in), a `shadows` caster config with `view.setShadowCaster/setShadowReceiver`,
+  a `grade` option for the composer path, and a 6th `render()` argument `state` passed to the rig
+  each frame. `createHeroComposer` takes an optional colour grade (`createGradePass`: lift / gamma /
+  gain, saturation, vignette; no LUT) after OutputPass, toggled per tier; its `dispose()` now also
+  frees the bloom / output / grade passes (previously leaked on view rebuild). The tier schema gains
+  `shadows` and `grade` flags; `resolveTiers` keeps tiers that differ by any flag, not only by pixel
+  ratio, so DPR-1 devices keep three steps and forced tiers pin correctly; `QualityGovernor.indexOf`
+  maps collapsed tiers by config order. Additive `CAMERA_FEEL.shake` keys `holdMs`, `coupleLookAt`,
+  `kick` / `kickMs` and new `impulse` / `focus` blocks; all defaults preserve the previous output
+  (verified pixel-identical by the consumer's hero-shot harness). `docs/render-hooks.md` records every
+  hook's options, defaults and consumer wiring.
+- `./audio`: `sample` layer type in the SFX schema (bank clip, pitch / gain jitter, start offset,
+  filter, reverb send, synthesis `fallback`), optional `ambience` bus, validated `mix.reverb` /
+  `bass_enhance` / `combat_comp` sections. `createSampleBank` — lazy, cached, per-clip
+  failure-contained bank loader with allocation-free round-robin `pick()`. `makeImpulseResponse`,
+  `createAcousticSpace`, `createSend`, `createHarmonicLift` — one-convolver shared space with bus /
+  event sends and the phone-speaker bass guard. `createHaptics({ backend })` with `vibrateBackend` /
+  `impactBackend`. Generic `test/fixtures/fake-audio.js`.
+- `./tools/audio/dsp.mjs` + `render-bank.mjs` (new): deterministic offline DSP kernels and bank
+  renderer (AAC via ffmpeg, manifest with recipe + seed, AAC-safe loop rolls).
+- Suite 186 -> 253 (rc.1 -> 0.3.0 before the audio tests; see `npm test`).
+
 ## 0.3.0-rc.1 (2026-11-05)
 
 Runtime asset and build-tool extraction (ADR-0004 ENG-07b/c). Layout change: the consumer links the
