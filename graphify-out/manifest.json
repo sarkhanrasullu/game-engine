@@ -1,0 +1,522 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1793823859.3581877,
+    "seen": 1793823860.8109062,
+    "ast_hash": "3b541b9935fcf0831355da956f897645",
+    "semantic_hash": "3b541b9935fcf0831355da956f897645",
+    "ast_empty": true
+  },
+  ".github/workflows/test.yml": {
+    "mtime": 1793822963.507077,
+    "seen": 1793823860.810911,
+    "ast_hash": "731f0d9828e12a4e727825f1889aa39a",
+    "semantic_hash": "731f0d9828e12a4e727825f1889aa39a"
+  },
+  "package.json": {
+    "mtime": 1793822963.50785,
+    "seen": 1793823860.8109581,
+    "ast_hash": "20397236e3eebc519f60bf51899f3eba",
+    "semantic_hash": "20397236e3eebc519f60bf51899f3eba"
+  },
+  "src/ai/action-mix.js": {
+    "mtime": 1793822963.5080862,
+    "seen": 1793823860.810974,
+    "ast_hash": "a578465322df979d7c13f24c21a9ef74",
+    "semantic_hash": "a578465322df979d7c13f24c21a9ef74"
+  },
+  "src/ai/cpu-controller.js": {
+    "mtime": 1793822963.5082452,
+    "seen": 1793823860.8109922,
+    "ast_hash": "a01aacfc2cddcf18d5267b4ae9a7728e",
+    "semantic_hash": "a01aacfc2cddcf18d5267b4ae9a7728e"
+  },
+  "src/ai/difficulty.js": {
+    "mtime": 1793822963.5084577,
+    "seen": 1793823860.811009,
+    "ast_hash": "0dcd01dad1081f9b1a99467217687d24",
+    "semantic_hash": "0dcd01dad1081f9b1a99467217687d24"
+  },
+  "src/ai/index.js": {
+    "mtime": 1793822963.5085533,
+    "seen": 1793823860.811024,
+    "ast_hash": "31be171721d2189122aac5a4b5e8f31d",
+    "semantic_hash": "31be171721d2189122aac5a4b5e8f31d"
+  },
+  "src/ai/perception.js": {
+    "mtime": 1793822963.508669,
+    "seen": 1793823860.811039,
+    "ast_hash": "083dc9b40523e4d548ec134641f96968",
+    "semantic_hash": "083dc9b40523e4d548ec134641f96968"
+  },
+  "src/ai/personalities.js": {
+    "mtime": 1793822963.5088484,
+    "seen": 1793823860.811054,
+    "ast_hash": "467f207afef582482d55adf587169e2f",
+    "semantic_hash": "467f207afef582482d55adf587169e2f"
+  },
+  "src/audio/haptics.js": {
+    "mtime": 1793822963.5090115,
+    "seen": 1793823860.81107,
+    "ast_hash": "d8d8ebafd02db1cbd5fb9609d2ac28ba",
+    "semantic_hash": "d8d8ebafd02db1cbd5fb9609d2ac28ba"
+  },
+  "src/audio/index.js": {
+    "mtime": 1793822963.509108,
+    "seen": 1793823860.8110871,
+    "ast_hash": "e514eb5e997727321843f9e884ddbe23",
+    "semantic_hash": "e514eb5e997727321843f9e884ddbe23"
+  },
+  "src/audio/sfx-schema.js": {
+    "mtime": 1793822963.509283,
+    "seen": 1793823860.8111029,
+    "ast_hash": "0ecd6f8f7ba38992acb546f9dad403e7",
+    "semantic_hash": "0ecd6f8f7ba38992acb546f9dad403e7"
+  },
+  "src/core/collision.js": {
+    "mtime": 1793822963.5094507,
+    "seen": 1793823860.8111172,
+    "ast_hash": "475e45cece4ce085a63c3ef9d6cec575",
+    "semantic_hash": "475e45cece4ce085a63c3ef9d6cec575"
+  },
+  "src/core/data.js": {
+    "mtime": 1793822963.5095575,
+    "seen": 1793823860.8111308,
+    "ast_hash": "0201b472ff4c319de2f47137f4c5b19e",
+    "semantic_hash": "0201b472ff4c319de2f47137f4c5b19e"
+  },
+  "src/core/hitstop.js": {
+    "mtime": 1793822963.5096555,
+    "seen": 1793823860.8111548,
+    "ast_hash": "f99f91848a1951d6ddfec53216718956",
+    "semantic_hash": "f99f91848a1951d6ddfec53216718956"
+  },
+  "src/core/index.js": {
+    "mtime": 1793822963.509761,
+    "seen": 1793823860.8111732,
+    "ast_hash": "20cd3b31c93f83ff91f8a2c1691a3394",
+    "semantic_hash": "20cd3b31c93f83ff91f8a2c1691a3394"
+  },
+  "src/core/loop.js": {
+    "mtime": 1793822963.5098732,
+    "seen": 1793823860.811187,
+    "ast_hash": "ad21598c89081588a4f62691af078e09",
+    "semantic_hash": "ad21598c89081588a4f62691af078e09"
+  },
+  "src/core/rng.js": {
+    "mtime": 1793822963.5099761,
+    "seen": 1793823860.8112,
+    "ast_hash": "a30c72aa38ceb8a98b27a1251fb08e1a",
+    "semantic_hash": "a30c72aa38ceb8a98b27a1251fb08e1a"
+  },
+  "src/input/handedness.js": {
+    "mtime": 1793822963.5101542,
+    "seen": 1793823860.811214,
+    "ast_hash": "d63dbea4b8b0e491728e4f7bd74dc467",
+    "semantic_hash": "d63dbea4b8b0e491728e4f7bd74dc467"
+  },
+  "src/input/index.js": {
+    "mtime": 1793822963.5102656,
+    "seen": 1793823860.8112268,
+    "ast_hash": "3f3facc36aef02d427dc07dab631a7c5",
+    "semantic_hash": "3f3facc36aef02d427dc07dab631a7c5"
+  },
+  "src/input/input-snapshot.js": {
+    "mtime": 1793822963.5104542,
+    "seen": 1793823860.81124,
+    "ast_hash": "5c0e2b75aca8f7cd08cd901bdc3a3bd6",
+    "semantic_hash": "5c0e2b75aca8f7cd08cd901bdc3a3bd6"
+  },
+  "src/input/keyboard.js": {
+    "mtime": 1793822963.510583,
+    "seen": 1793823860.811253,
+    "ast_hash": "56261dc2a9385b41000addd522dd4d00",
+    "semantic_hash": "56261dc2a9385b41000addd522dd4d00"
+  },
+  "src/input/touch-buttons.js": {
+    "mtime": 1793822963.5106938,
+    "seen": 1793823860.8112671,
+    "ast_hash": "867c34a0893b3dc03029d78bd2124418",
+    "semantic_hash": "867c34a0893b3dc03029d78bd2124418"
+  },
+  "src/input/touch-stick.js": {
+    "mtime": 1793822963.510894,
+    "seen": 1793823860.811281,
+    "ast_hash": "45040acc635b7003f675db050b9ce443",
+    "semantic_hash": "45040acc635b7003f675db050b9ce443"
+  },
+  "src/render/camera-director.js": {
+    "mtime": 1793822963.5111463,
+    "seen": 1793823860.8112938,
+    "ast_hash": "26fcff5f9d4d67f03350a178cc05ff65",
+    "semantic_hash": "26fcff5f9d4d67f03350a178cc05ff65"
+  },
+  "src/render/framing.js": {
+    "mtime": 1793822963.5112636,
+    "seen": 1793823860.8113081,
+    "ast_hash": "3bd113c767f139ded362347fd090c7d8",
+    "semantic_hash": "3bd113c767f139ded362347fd090c7d8"
+  },
+  "src/render/gpu-caps.js": {
+    "mtime": 1793822963.5113738,
+    "seen": 1793823860.8113222,
+    "ast_hash": "710ea592fec93ac221229ae285f7bbb4",
+    "semantic_hash": "710ea592fec93ac221229ae285f7bbb4"
+  },
+  "src/render/index.js": {
+    "mtime": 1793822963.5114794,
+    "seen": 1793823860.811336,
+    "ast_hash": "045cef86d24079d2fe7f5ac50f772106",
+    "semantic_hash": "045cef86d24079d2fe7f5ac50f772106"
+  },
+  "src/render/pipeline.js": {
+    "mtime": 1793822963.5116494,
+    "seen": 1793823860.811352,
+    "ast_hash": "d8e0fc50c6280e34c3367e0ccef7de2d",
+    "semantic_hash": "d8e0fc50c6280e34c3367e0ccef7de2d"
+  },
+  "src/render/quality-config.js": {
+    "mtime": 1793822963.5117536,
+    "seen": 1793823860.8113668,
+    "ast_hash": "2f398c1bfe781704e339d6dc3bd38c5c",
+    "semantic_hash": "2f398c1bfe781704e339d6dc3bd38c5c"
+  },
+  "src/render/quality.js": {
+    "mtime": 1793822963.5119138,
+    "seen": 1793823860.81138,
+    "ast_hash": "c691361a8c9ae0daa2aff54b6da0b9e4",
+    "semantic_hash": "c691361a8c9ae0daa2aff54b6da0b9e4"
+  },
+  "src/render/scene.js": {
+    "mtime": 1793822963.5121007,
+    "seen": 1793823860.811393,
+    "ast_hash": "8f3e752cd627e63180338535d26068b2",
+    "semantic_hash": "8f3e752cd627e63180338535d26068b2"
+  },
+  "src/sim/duel-sim.js": {
+    "mtime": 1793822963.512346,
+    "seen": 1793823860.811407,
+    "ast_hash": "c59c26bf68fc0c4d6c9fd2d6c61cbecd",
+    "semantic_hash": "c59c26bf68fc0c4d6c9fd2d6c61cbecd"
+  },
+  "src/sim/fighter-config.js": {
+    "mtime": 1793822963.5124524,
+    "seen": 1793823860.8114188,
+    "ast_hash": "bcf727fd54339d3e3ced8886dc5009aa",
+    "semantic_hash": "bcf727fd54339d3e3ced8886dc5009aa"
+  },
+  "src/sim/fighter.js": {
+    "mtime": 1793822963.5126238,
+    "seen": 1793823860.811433,
+    "ast_hash": "88204322f0677e2adbfa8d07944c2498",
+    "semantic_hash": "88204322f0677e2adbfa8d07944c2498"
+  },
+  "src/sim/frame-data.js": {
+    "mtime": 1793822963.512793,
+    "seen": 1793823860.811446,
+    "ast_hash": "fd212cd0c80167a006a5ec9af23505c5",
+    "semantic_hash": "fd212cd0c80167a006a5ec9af23505c5"
+  },
+  "src/sim/hurtbox.js": {
+    "mtime": 1793822963.5128953,
+    "seen": 1793823860.811459,
+    "ast_hash": "f6978afd6410abb11cb88c40f2699bdd",
+    "semantic_hash": "f6978afd6410abb11cb88c40f2699bdd"
+  },
+  "src/sim/index.js": {
+    "mtime": 1793822963.5129807,
+    "seen": 1793823860.811473,
+    "ast_hash": "349af9cf4abf872a045951d919aa72d4",
+    "semantic_hash": "349af9cf4abf872a045951d919aa72d4"
+  },
+  "src/sim/match-config.js": {
+    "mtime": 1793822963.5133007,
+    "seen": 1793823860.811487,
+    "ast_hash": "e3394a897e5e281a09859db5bd598159",
+    "semantic_hash": "e3394a897e5e281a09859db5bd598159"
+  },
+  "src/sim/match-flow.js": {
+    "mtime": 1793822963.5134645,
+    "seen": 1793823860.811501,
+    "ast_hash": "8fd8154934ac4f0dfc951c56c2ea6863",
+    "semantic_hash": "8fd8154934ac4f0dfc951c56c2ea6863"
+  },
+  "src/sim/movement-config.js": {
+    "mtime": 1793822963.5135827,
+    "seen": 1793823860.8115158,
+    "ast_hash": "65c8517873da49cfed0ce4b7c6e73443",
+    "semantic_hash": "65c8517873da49cfed0ce4b7c6e73443"
+  },
+  "src/sim/movement.js": {
+    "mtime": 1793822963.5136812,
+    "seen": 1793823860.811532,
+    "ast_hash": "e6e29d9ae90d08d36ff5ec6d2cd73955",
+    "semantic_hash": "e6e29d9ae90d08d36ff5ec6d2cd73955"
+  },
+  "src/sim/moves.js": {
+    "mtime": 1793822963.5138006,
+    "seen": 1793823860.811548,
+    "ast_hash": "9cae24b6fe2a3b941b53959600161a8e",
+    "semantic_hash": "9cae24b6fe2a3b941b53959600161a8e"
+  },
+  "src/sim/poses.js": {
+    "mtime": 1793822963.5139213,
+    "seen": 1793823860.811564,
+    "ast_hash": "ef11338eeef007154a83a12f18685fc7",
+    "semantic_hash": "ef11338eeef007154a83a12f18685fc7"
+  },
+  "src/sim/ruleset.js": {
+    "mtime": 1793822963.5140154,
+    "seen": 1793823860.81158,
+    "ast_hash": "134508990da0e26624e42868de96c7bd",
+    "semantic_hash": "134508990da0e26624e42868de96c7bd"
+  },
+  "src/sim/state-machine.js": {
+    "mtime": 1793822963.5141964,
+    "seen": 1793823860.811595,
+    "ast_hash": "48136eb26104611e1f06df8a477c153d",
+    "semantic_hash": "48136eb26104611e1f06df8a477c153d"
+  },
+  "src/storage/index.js": {
+    "mtime": 1793822963.5143569,
+    "seen": 1793823860.811609,
+    "ast_hash": "9c6be4e6d45b33afb0903d36d8327c51",
+    "semantic_hash": "9c6be4e6d45b33afb0903d36d8327c51"
+  },
+  "src/storage/safe-storage.js": {
+    "mtime": 1793822963.5144649,
+    "seen": 1793823860.811624,
+    "ast_hash": "c9e2ca6a050508b107be935aabde9f71",
+    "semantic_hash": "c9e2ca6a050508b107be935aabde9f71"
+  },
+  "src/storage/versioned-save.js": {
+    "mtime": 1793822963.5145586,
+    "seen": 1793823860.811639,
+    "ast_hash": "89d7b1932e6b98e5c29a8f2c83693e13",
+    "semantic_hash": "89d7b1932e6b98e5c29a8f2c83693e13"
+  },
+  "test/ai/ai-support.test.js": {
+    "mtime": 1793822963.5147862,
+    "seen": 1793823860.8116539,
+    "ast_hash": "a5183e7e92266238bd0df284005e4503",
+    "semantic_hash": "a5183e7e92266238bd0df284005e4503"
+  },
+  "test/audio/haptics.test.js": {
+    "mtime": 1793822963.5149317,
+    "seen": 1793823860.811668,
+    "ast_hash": "004d410877c772648d04c0322f9da42c",
+    "semantic_hash": "004d410877c772648d04c0322f9da42c"
+  },
+  "test/audio/sfx-schema.test.js": {
+    "mtime": 1793822963.515029,
+    "seen": 1793823860.811682,
+    "ast_hash": "286d5d749c527e8590e460f865606758",
+    "semantic_hash": "286d5d749c527e8590e460f865606758"
+  },
+  "test/boundary.test.js": {
+    "mtime": 1793822963.5151925,
+    "seen": 1793823860.811696,
+    "ast_hash": "b14f36d5f623fa161828c5e25f049da4",
+    "semantic_hash": "b14f36d5f623fa161828c5e25f049da4"
+  },
+  "test/core/collision.test.js": {
+    "mtime": 1793822963.5153377,
+    "seen": 1793823860.81171,
+    "ast_hash": "4e069d2834b04954253860c6f2e4575c",
+    "semantic_hash": "4e069d2834b04954253860c6f2e4575c"
+  },
+  "test/core/data.test.js": {
+    "mtime": 1793822963.5154257,
+    "seen": 1793823860.811727,
+    "ast_hash": "8f32a2ab2cd8321b4b649c7ab5779979",
+    "semantic_hash": "8f32a2ab2cd8321b4b649c7ab5779979"
+  },
+  "test/core/hitstop.test.js": {
+    "mtime": 1793822963.5156431,
+    "seen": 1793823860.811742,
+    "ast_hash": "9efa37d0af9cc9d3316609f38e4de810",
+    "semantic_hash": "9efa37d0af9cc9d3316609f38e4de810"
+  },
+  "test/core/loop.test.js": {
+    "mtime": 1793822963.5157287,
+    "seen": 1793823860.8117561,
+    "ast_hash": "5df98bc7291f7193ea519d40f1faecbc",
+    "semantic_hash": "5df98bc7291f7193ea519d40f1faecbc"
+  },
+  "test/fixtures/ai_difficulty.json": {
+    "mtime": 1793822963.5158784,
+    "seen": 1793823860.811769,
+    "ast_hash": "14634db2cb2cb0cdfa930858e887b1b1",
+    "semantic_hash": "14634db2cb2cb0cdfa930858e887b1b1",
+    "ast_empty": true
+  },
+  "test/fixtures/ai_personalities.json": {
+    "mtime": 1793822963.5161023,
+    "seen": 1793823860.8117702,
+    "ast_hash": "9c37bca0cd77fb19b532d411b232a24e",
+    "semantic_hash": "9c37bca0cd77fb19b532d411b232a24e",
+    "ast_empty": true
+  },
+  "test/fixtures/bound/ai-data.js": {
+    "mtime": 1793822963.5162492,
+    "seen": 1793823860.811771,
+    "ast_hash": "5bada8d2314742f5497dbdf4fe7055d4",
+    "semantic_hash": "5bada8d2314742f5497dbdf4fe7055d4"
+  },
+  "test/fixtures/bound/difficulty.js": {
+    "mtime": 1793822963.5163443,
+    "seen": 1793823860.811786,
+    "ast_hash": "f0d45f5428b132730ea3098c97cefc30",
+    "semantic_hash": "f0d45f5428b132730ea3098c97cefc30"
+  },
+  "test/fixtures/bound/duel-sim.js": {
+    "mtime": 1793822963.516548,
+    "seen": 1793823860.8118012,
+    "ast_hash": "a156d2f36842a219494609b086cedb7d",
+    "semantic_hash": "a156d2f36842a219494609b086cedb7d"
+  },
+  "test/fixtures/bound/fighter-config.js": {
+    "mtime": 1793822963.5166354,
+    "seen": 1793823860.811815,
+    "ast_hash": "cb5fa165fab7dd9aaa1afaf11f4afd2b",
+    "semantic_hash": "cb5fa165fab7dd9aaa1afaf11f4afd2b"
+  },
+  "test/fixtures/bound/fighter.js": {
+    "mtime": 1793822963.5167196,
+    "seen": 1793823860.81183,
+    "ast_hash": "93e1ecf292af9592d42385b754cab73b",
+    "semantic_hash": "93e1ecf292af9592d42385b754cab73b"
+  },
+  "test/fixtures/bound/input-config.js": {
+    "mtime": 1793822963.5169876,
+    "seen": 1793823860.811844,
+    "ast_hash": "4eab1f5438e37962d7b6d57a35b21563",
+    "semantic_hash": "4eab1f5438e37962d7b6d57a35b21563"
+  },
+  "test/fixtures/bound/input-snapshot.js": {
+    "mtime": 1793822963.517136,
+    "seen": 1793823860.811858,
+    "ast_hash": "eec57128dd0219038248c655cb6056ed",
+    "semantic_hash": "eec57128dd0219038248c655cb6056ed"
+  },
+  "test/fixtures/bound/match-config.js": {
+    "mtime": 1793822963.5172274,
+    "seen": 1793823860.811873,
+    "ast_hash": "a4bf58bb4960eef39921bd3292922b19",
+    "semantic_hash": "a4bf58bb4960eef39921bd3292922b19"
+  },
+  "test/fixtures/bound/match-flow.js": {
+    "mtime": 1793822963.517326,
+    "seen": 1793823860.811887,
+    "ast_hash": "c40f43e5a4c097c9c4e54ca3d2f8f3ec",
+    "semantic_hash": "c40f43e5a4c097c9c4e54ca3d2f8f3ec"
+  },
+  "test/fixtures/bound/movement-config.js": {
+    "mtime": 1793822963.5174322,
+    "seen": 1793823860.8119009,
+    "ast_hash": "a341e2bc9111aa7a86f67627b6097017",
+    "semantic_hash": "a341e2bc9111aa7a86f67627b6097017"
+  },
+  "test/fixtures/bound/movement.js": {
+    "mtime": 1793822963.517547,
+    "seen": 1793823860.811915,
+    "ast_hash": "e1a7d0b7820192ecc20c2b96bc402a8b",
+    "semantic_hash": "e1a7d0b7820192ecc20c2b96bc402a8b"
+  },
+  "test/fixtures/bound/moves.js": {
+    "mtime": 1793822963.5177379,
+    "seen": 1793823860.811929,
+    "ast_hash": "3ea59f223a9e86898debc3eaa979315c",
+    "semantic_hash": "3ea59f223a9e86898debc3eaa979315c"
+  },
+  "test/fixtures/bound/ruleset.js": {
+    "mtime": 1793822963.51783,
+    "seen": 1793823860.811944,
+    "ast_hash": "2689f2796d032adae96d02dd43f7a9c2",
+    "semantic_hash": "2689f2796d032adae96d02dd43f7a9c2"
+  },
+  "test/fixtures/bound/state-machine.js": {
+    "mtime": 1793822963.5179427,
+    "seen": 1793823860.811958,
+    "ast_hash": "7905497d0e950ea615aa84ec12ca33a4",
+    "semantic_hash": "7905497d0e950ea615aa84ec12ca33a4"
+  },
+  "test/fixtures/combat_tuning.json": {
+    "mtime": 1793822963.5180864,
+    "seen": 1793823860.8119721,
+    "ast_hash": "911654fcf707b5ee19f0836becc54493",
+    "semantic_hash": "911654fcf707b5ee19f0836becc54493",
+    "ast_empty": true
+  },
+  "test/input/input-snapshot.test.js": {
+    "mtime": 1793822963.518279,
+    "seen": 1793823860.811973,
+    "ast_hash": "0b871259108f34370197be8295c2035d",
+    "semantic_hash": "0b871259108f34370197be8295c2035d"
+  },
+  "test/input/touch-ux.test.js": {
+    "mtime": 1793822963.5184357,
+    "seen": 1793823860.811987,
+    "ast_hash": "37955c0ddc28afdd908a750eaedbc07d",
+    "semantic_hash": "37955c0ddc28afdd908a750eaedbc07d"
+  },
+  "test/render/camera-director.test.js": {
+    "mtime": 1793822963.5186355,
+    "seen": 1793823860.812,
+    "ast_hash": "7c56182e9a135901f9747311b640490a",
+    "semantic_hash": "7c56182e9a135901f9747311b640490a"
+  },
+  "test/render/framing.test.js": {
+    "mtime": 1793822963.518719,
+    "seen": 1793823860.8120131,
+    "ast_hash": "18613249bc205cd5be733bb75816562e",
+    "semantic_hash": "18613249bc205cd5be733bb75816562e"
+  },
+  "test/render/quality.test.js": {
+    "mtime": 1793822963.518876,
+    "seen": 1793823860.812027,
+    "ast_hash": "e0ac40fb747656f5dd06fe95f52d9474",
+    "semantic_hash": "e0ac40fb747656f5dd06fe95f52d9474"
+  },
+  "test/sim/duel-helpers.js": {
+    "mtime": 1793822963.5191166,
+    "seen": 1793823860.812041,
+    "ast_hash": "ae99a0f981677bdf84b25eccc7aaa86b",
+    "semantic_hash": "ae99a0f981677bdf84b25eccc7aaa86b"
+  },
+  "test/sim/duel-sim.test.js": {
+    "mtime": 1793822963.5192645,
+    "seen": 1793823860.812055,
+    "ast_hash": "b17e2a92696fe34247bec800e4a66525",
+    "semantic_hash": "b17e2a92696fe34247bec800e4a66525"
+  },
+  "test/sim/frame-data.test.js": {
+    "mtime": 1793822963.5193675,
+    "seen": 1793823860.812068,
+    "ast_hash": "d930b3544b49097c991e0c71ac0a60cf",
+    "semantic_hash": "d930b3544b49097c991e0c71ac0a60cf"
+  },
+  "test/sim/match-flow.test.js": {
+    "mtime": 1793822963.5194767,
+    "seen": 1793823860.8120809,
+    "ast_hash": "2c19c827f2a7ea521e599e8d55f5802f",
+    "semantic_hash": "2c19c827f2a7ea521e599e8d55f5802f"
+  },
+  "test/sim/movement.test.js": {
+    "mtime": 1793822963.5195649,
+    "seen": 1793823860.812093,
+    "ast_hash": "e4f596cd1dc8885946d2355d969316f6",
+    "semantic_hash": "e4f596cd1dc8885946d2355d969316f6"
+  },
+  "test/sim/state-machine.test.js": {
+    "mtime": 1793822963.51973,
+    "seen": 1793823860.812106,
+    "ast_hash": "356f5f64f57eb016edecaa3b6d648e15",
+    "semantic_hash": "356f5f64f57eb016edecaa3b6d648e15"
+  },
+  "test/storage/storage.test.js": {
+    "mtime": 1793822963.519878,
+    "seen": 1793823860.812119,
+    "ast_hash": "26b0f0729e2ab033cb80fb4854edb967",
+    "semantic_hash": "26b0f0729e2ab033cb80fb4854edb967"
+  }
+}
