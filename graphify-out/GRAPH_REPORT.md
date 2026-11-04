@@ -6,12 +6,12 @@
 - Unclassified: 3 file(s) not represented in the graph (top: (none) 3)
 
 ## Summary
-- 1145 nodes · 2420 edges · 56 communities (52 shown, 4 thin omitted)
+- 1145 nodes · 2420 edges · 55 communities (51 shown, 4 thin omitted)
 - Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 44 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `494ab81d`
+- Built from commit: `e12ab8e0`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,7 +21,7 @@
 - ref_node_assert
 - cpu-controller.js
 - sim/duel-sim.js
-- state-machine.test.js
+- ref_node_assert
 - bake.py
 - MatchFlow
 - package.json
@@ -33,7 +33,7 @@
 - hero-lite.test.js
 - rig-contract.test.js
 - geo.js
-- core/index.js
+- Hitstop
 - skin.js
 - ref_node_assert
 - hardsurface.py
@@ -52,7 +52,7 @@
 - scene-hooks.test.js
 - source-hash.mjs
 - bpy
-- plate
+- hardsurface.py
 - three
 - sim/moves.js
 - createScene
@@ -62,14 +62,13 @@
 - render-bank.mjs
 - ref_node_path
 - sample-bank.test.js
-- scene.py
+- pbr.py
 - haptics.test.js
-- scene.js
+- frame-data.js
 - boundary.test.js
-- mark_seam
+- bound/fighter.js
 - bind_world_three
 - environment.js
-- material.py
 - computeFraming
 - setup.sh
 
@@ -92,19 +91,19 @@
   test/fixtures/bound/match-flow.js → src/sim/match-flow.js
 - `make()` --calls--> `FixedStepLoop`  [EXTRACTED]
   test/core/loop.test.js → src/core/loop.js
-- `sampleAt()` --calls--> `createSnapshot()`  [EXTRACTED]
-  test/input/input-snapshot.test.js → src/input/input-snapshot.js
-- `sampleAt()` --calls--> `createSnapshot()`  [EXTRACTED]
-  test/input/touch-ux.test.js → src/input/input-snapshot.js
+- `measure()` --calls--> `FrameDataTracker`  [EXTRACTED]
+  test/sim/frame-data.test.js → src/sim/frame-data.js
+- `cyl()` --calls--> `createCylinder()`  [EXTRACTED]
+  test/core/collision.test.js → src/core/collision.js
 
 ## Import Cycles
 - None detected.
 
-## Communities (56 total, 4 thin omitted)
+## Communities (55 total, 4 thin omitted)
 
 ### Community 0 - "quality.test.js"
-Cohesion: 0.16
-Nodes (9): canReachBloom(), ADR-0001, QUALITY_CONFIG, ADR-0001, materialTierFor(), QualityGovernor, resolveTiers(), TIER_FLAGS (+1 more)
+Cohesion: 0.13
+Nodes (10): ADR-0001, canReachBloom(), ADR-0001, QUALITY_CONFIG, ADR-0001, materialTierFor(), QualityGovernor, resolveTiers() (+2 more)
 
 ### Community 1 - "hero-asset.test.js"
 Cohesion: 0.06
@@ -116,23 +115,23 @@ Nodes (22): HANDEDNESS, resolveHandedness(), stickZoneSide(), createSnapshot(), 
 
 ### Community 3 - "cpu-controller.js"
 Cohesion: 0.05
-Nodes (47): ActionMix, actionOf(), ACTIONS, AI_ROLE, bestPokeReach(), bodyRadiusOf(), CAN_SIDESTEP, clearSnapshot() (+39 more)
+Nodes (48): ActionMix, actionOf(), ACTIONS, AI_ROLE, bestPokeReach(), bodyRadiusOf(), CAN_SIDESTEP, clearSnapshot() (+40 more)
 
 ### Community 4 - "sim/duel-sim.js"
-Cohesion: 0.10
-Nodes (33): applyConnect(), armorAbsorbs(), connectResult(), cue(), emit(), EVENT_NUM_FIELDS, gainMeter(), resetDuel() (+25 more)
+Cohesion: 0.11
+Nodes (35): applyConnect(), armorAbsorbs(), CONNECT, connectResult(), CUE, cue(), emit(), EVENT_NUM_FIELDS (+27 more)
 
-### Community 5 - "state-machine.test.js"
-Cohesion: 0.12
-Nodes (22): ../fighters/duel-sim.js, CONNECT, CUE, EVENT, resetMeters(), frameAdvantage(), FrameDataTracker, isStun() (+14 more)
+### Community 5 - "ref_node_assert"
+Cohesion: 0.14
+Nodes (15): canTransition(), PHASE, STATE, TRANSITIONS, FIGHTER_RULES, MOVES, dist(), DT (+7 more)
 
 ### Community 6 - "bake.py"
-Cohesion: 0.08
-Nodes (23): bake(), bake_attribute(), bake_chain(), bake_curvature(), wire(), _bake_emit_with(), _bake_target_node(), _clear_bake_target() (+15 more)
+Cohesion: 0.11
+Nodes (14): bake(), bake_attribute(), bake_chain(), bake_curvature(), wire(), _bake_emit_with(), _bake_target_node(), _clear_bake_target() (+6 more)
 
 ### Community 7 - "MatchFlow"
-Cohesion: 0.14
-Nodes (14): BUFFER, ROUND_KEYS, MATCH_EVENT, MATCH_STATE, ROUND_REASON, roundWinner(), createCombatant(), ROUND_RULES (+6 more)
+Cohesion: 0.25
+Nodes (10): MATCH_EVENT, MATCH_STATE, ROUND_REASON, roundWinner(), ROUND_RULES, MatchFlow, koRound(), make() (+2 more)
 
 ### Community 8 - "package.json"
 Cohesion: 0.06
@@ -148,7 +147,7 @@ Nodes (29): biquad(), bubbles(), contactPulse(), crackle(), dbToGain(), env(), f
 
 ### Community 11 - "sfx-schema.js"
 Cohesion: 0.17
-Nodes (17): ADR-0005, buildSfxData(), BUSES, camel(), dbToGain(), FILTERS, fin(), ID_MAPS (+9 more)
+Nodes (17): buildSfxData(), BUSES, camel(), dbToGain(), FILTERS, fin(), ID_MAPS, ADR-0004 (+9 more)
 
 ### Community 12 - "steps"
 Cohesion: 0.13
@@ -170,29 +169,29 @@ Nodes (22): fmt(), glbSkinViolations(), JOINT_NAME, ADR-0001, ADR-0003, near(), 
 Cohesion: 0.24
 Nodes (4): chamferRect(), ADR-0001, plate(), slab()
 
-### Community 17 - "core/index.js"
-Cohesion: 0.38
-Nodes (3): FixedStepLoop, SIM_HZ, make()
+### Community 17 - "Hitstop"
+Cohesion: 0.13
+Nodes (6): Hitstop, FixedStepLoop, SIM_HZ, createDuel(), createEvent(), make()
 
 ### Community 18 - "skin.js"
-Cohesion: 0.20
-Nodes (4): ADR-0001, createSkinnedBuilder(), ADR-0001, LAYOUT
+Cohesion: 0.33
+Nodes (3): createSkinnedBuilder(), ADR-0001, LAYOUT
 
 ### Community 19 - "ref_node_assert"
-Cohesion: 0.12
-Nodes (12): createCylinder(), cylindersOverlap(), Hitstop, createDuel(), createEvent(), createCombatant(), createFighter(), stepFighter() (+4 more)
+Cohesion: 0.24
+Nodes (8): createCylinder(), cylindersOverlap(), createCombatant(), createFighter(), cyl(), stepFighter(), run(), setup()
 
 ### Community 20 - "hardsurface.py"
-Cohesion: 0.12
-Nodes (15): _attr(), brushed(), depth(), _displace_along_normals(), edge_wear(), hammered(), depth(), feature() (+7 more)
+Cohesion: 0.20
+Nodes (10): brushed(), depth(), _displace_along_normals(), edge_wear(), hammered(), depth(), feature(), _value_noise() (+2 more)
 
 ### Community 21 - "smoke_plate.py"
-Cohesion: 0.12
-Nodes (13): chamfer_outline(), densify(), ensure_masks(), remesh(), row(), snap_to_surface(), activate(), apply_transform() (+5 more)
+Cohesion: 0.11
+Nodes (13): chamfer_outline(), densify(), mirror_half(), quilt(), remesh(), row(), snap_to_surface(), activate() (+5 more)
 
 ### Community 22 - "sim/index.js"
-Cohesion: 0.21
-Nodes (15): numberTable(), buildMeter(), buildRules(), METER_KEYS, RULE_KEYS, buildRoundRules(), buildMovement(), FIGHTER_MOVEMENT_KEYS (+7 more)
+Cohesion: 0.18
+Nodes (16): numberTable(), buildMeter(), buildRules(), METER_KEYS, RULE_KEYS, buildRoundRules(), ROUND_KEYS, buildMovement() (+8 more)
 
 ### Community 23 - "build.py"
 Cohesion: 0.14
@@ -207,8 +206,8 @@ Cohesion: 0.14
 Nodes (11): bind_blend(), bind_rigid(), _ensure_modifier(), fighter_entry(), find_armature(), fix_weights(), _group(), joint_matrix() (+3 more)
 
 ### Community 26 - "smoke_cube.py"
-Cohesion: 0.15
-Nodes (9): save_png(), mirror_half(), apply_modifiers(), delete(), build(), _cube(), _fill_base_color(), _high_poly() (+1 more)
+Cohesion: 0.12
+Nodes (13): save_png(), mirror_copy(), apply_modifiers(), delete(), duplicate(), rng(), triangle_count(), build() (+5 more)
 
 ### Community 27 - "compress.mjs"
 Cohesion: 0.19
@@ -231,24 +230,24 @@ Cohesion: 0.23
 Nodes (13): proportionsTextFor(), assetInputFiles(), encoderVersions(), hashableBytes(), listAssetScripts(), listPipelineFiles(), ADR-0003, ADR-0004 (+5 more)
 
 ### Community 35 - "bpy"
-Cohesion: 0.16
-Nodes (4): export_glb(), _sort_faces(), _triangulate_all(), render_turntable()
+Cohesion: 0.12
+Nodes (6): export_glb(), _sort_faces(), _triangulate_all(), _gltf_output_group(), pbr_material(), render_turntable()
 
-### Community 36 - "plate"
-Cohesion: 0.15
-Nodes (8): assign_material_id(), bezier_profile(), _faces_front(), fasteners(), _new_object(), plate(), shell(), _wrap()
+### Community 36 - "hardsurface.py"
+Cohesion: 0.10
+Nodes (16): assign_material_id(), _attr(), bezier_profile(), ensure_masks(), _faces_front(), fasteners(), mark_seam(), _mat_id() (+8 more)
 
 ### Community 37 - "three"
-Cohesion: 0.23
-Nodes (12): three, applyGrade(), createEnvScene(), createGradePass(), createHeroComposer(), disposeScene(), ENV_CACHE, getHeroEnvironment() (+4 more)
+Cohesion: 0.24
+Nodes (11): applyGrade(), createEnvScene(), createGradePass(), createHeroComposer(), disposeScene(), ENV_CACHE, getHeroEnvironment(), GRADE_DEFAULTS (+3 more)
 
 ### Community 38 - "sim/moves.js"
-Cohesion: 0.23
-Nodes (13): deepFreeze(), AI_ROLES, ARMOR_LEVELS, buildMoves(), chainLength(), GUARD_TABLE, MOVE_FIELDS, MOVE_INPUTS (+5 more)
+Cohesion: 0.25
+Nodes (12): deepFreeze(), AI_ROLES, ARMOR_LEVELS, buildMoves(), chainLength(), GUARD_TABLE, MOVE_FIELDS, MOVE_INPUTS (+4 more)
 
 ### Community 39 - "createScene"
-Cohesion: 0.20
-Nodes (13): setShadowFlag(), disposeHeroEnvironment(), createScene(), dispose(), onEvent(), pose(), prewarm(), render() (+5 more)
+Cohesion: 0.14
+Nodes (22): three, configureShadowCaster(), createDefaultLightRig(), ADR-0001, setShadowFlag(), SHADOW_DEFAULTS, SHADOW_TYPES, disposeHeroEnvironment() (+14 more)
 
 ### Community 40 - "run.mjs"
 Cohesion: 0.14
@@ -274,25 +273,21 @@ Nodes (7): L, checkBundleSizes(), isMain, listDistJs(), loadLimits(), ADR-0004, 
 Cohesion: 0.27
 Nodes (9): createSampleBank(), fin(), ADR-0005, parseBankManifest(), FILES, ADR-0005, manifest(), setup() (+1 more)
 
-### Community 46 - "scene.py"
+### Community 46 - "pbr.py"
 Cohesion: 0.20
-Nodes (4): mirror_copy(), duplicate(), rng(), triangle_count()
+Nodes (9): compose(), decode_ids(), _grid(), _linear_to_srgb(), preset(), _smooth(), _validate(), value_noise() (+1 more)
 
 ### Community 47 - "haptics.test.js"
 Cohesion: 0.27
 Nodes (6): createHaptics(), impactBackend(), ADR-0005, vibrateBackend(), ADR-0005, fakeNavigator()
 
-### Community 48 - "scene.js"
-Cohesion: 0.29
-Nodes (8): configureShadowCaster(), createDefaultLightRig(), ADR-0001, SHADOW_DEFAULTS, SHADOW_TYPES, createRenderer(), ADR-0001, ADR-0004
+### Community 48 - "frame-data.js"
+Cohesion: 0.24
+Nodes (7): ../fighters/duel-sim.js, EVENT, frameAdvantage(), FrameDataTracker, isStun(), OUTCOME, moveTotal()
 
 ### Community 49 - "boundary.test.js"
 Cohesion: 0.22
 Nodes (6): ALLOWED_BARE, GAME_LEXICON, ADR-0004, ROOT, SRC, walk()
-
-### Community 50 - "mark_seam"
-Cohesion: 0.29
-Nodes (3): mark_seam(), panel_line(), quilt()
 
 ### Community 51 - "bind_world_three"
 Cohesion: 0.33
@@ -318,17 +313,17 @@ Nodes (3): abs_path(), setup.sh script, verify()
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `three` connect `three` to `hero-asset.test.js`, `scene-hooks.test.js`, `package.json`, `rig-contract.test.js`, `scene.js`, `geo.js`, `skin.js`, `environment.js`?**
-  _High betweenness centrality (0.082) - this node is a cross-community bridge._
+- **Why does `three` connect `createScene` to `hero-asset.test.js`, `scene-hooks.test.js`, `three`, `package.json`, `rig-contract.test.js`, `geo.js`, `skin.js`, `environment.js`?**
+  _High betweenness centrality (0.080) - this node is a cross-community bridge._
 - **Are the 10 inferred relationships involving `createScene()` (e.g. with `dispose()` and `finalKo()`) actually correct?**
   _`createScene()` has 10 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `ADR-0003`, `ADR-0004`, `ADR-0003` to the rest of the system?**
   _59 weakly-connected nodes found - possible missing edges._
+- **Should `quality.test.js` be split into smaller, more focused modules?**
+  _Cohesion score 0.13043478260869565 - nodes in this community are weakly interconnected._
+- **Why does `FakeAudioContext` connect `FakeAudioContext` to `FakeParam`, `acoustic-space.test.js`, `sample-bank.test.js`, `haptics.test.js`?**
+  _High betweenness centrality (0.026) - this node is a cross-community bridge._
 - **Should `hero-asset.test.js` be split into smaller, more focused modules?**
   _Cohesion score 0.062111801242236024 - nodes in this community are weakly interconnected._
-- **Why does `MatchFlow` connect `MatchFlow` to `MatchFlow`?**
-  _High betweenness centrality (0.027) - this node is a cross-community bridge._
 - **Should `ref_node_assert` be split into smaller, more focused modules?**
   _Cohesion score 0.0782312925170068 - nodes in this community are weakly interconnected._
-- **Should `cpu-controller.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.05006839945280438 - nodes in this community are weakly interconnected._
