@@ -1,0 +1,21 @@
+{
+  "0": "scene.js",
+  "1": "hero-asset.test.js",
+  "2": "ref_node_assert",
+  "3": "cpu-controller.js",
+  "4": "sim/duel-sim.js",
+  "5": "state-machine.test.js",
+  "6": "ai-support.test.js",
+  "7": "MatchFlow",
+  "8": "package.json",
+  "9": "poses.js",
+  "10": "InputState",
+  "11": "sfx-schema.js",
+  "12": "steps",
+  "13": "storage.test.js",
+  "14": "hero-lite.test.js",
+  "15": "rig.js",
+  "16": "geo.js",
+  "17": "core/index.js",
+  "18": "skin.js"
+}

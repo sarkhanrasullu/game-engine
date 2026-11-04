@@ -1,6 +1,6 @@
 {
   "name": "@sarkhanrasullu/game-engine",
-  "version": "0.2.0",
+  "version": "0.3.0-rc.1",
   "description": "Data-driven 3D fighting-game engine: fixed-step core, deterministic duel sim, fair CPU pilot, input layer, three.js render pipeline, audio and storage primitives. Raw ES modules, no build step.",
   "license": "MIT",
   "author": "sarkhanrasullu",
@@ -18,10 +18,14 @@
     "./render": "./src/render/index.js",
     "./audio": "./src/audio/index.js",
     "./storage": "./src/storage/index.js",
+    "./assets": "./src/assets/index.js",
+    "./assets/gltf-loader": "./src/assets/gltf-loader-stack.js",
+    "./tools/*": "./tools/*",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "tools",
     "LICENSE",
     "README.md",
     "CHANGELOG.md"
