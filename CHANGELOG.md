@@ -34,6 +34,7 @@ validates. Every new difficulty key is optional and defaults to 0 (the level doe
   throw special once a throw of its was teched this round), `ventChance` (one roll per attack that has it in blockstun, only against a move it could not
   punish, keeping the meter within one cost of full when it wants the Overwind; `REASON.VENT`). Observation adds `hitCounter` and `pushLeft`; `stunLeft` stays hidden.
   Tests: `test/ai/fight-systems.test.js`.
+
 ## 0.5.2 (2026-11-05)
 
 One download lane for everything a game streams (consumer BOOT-NET: slow links). Additive, with one behaviour change, noted last.
