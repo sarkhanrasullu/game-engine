@@ -109,3 +109,72 @@ test('load_withoutFetchMarksEverythingFailed_andRequiresADecoder', async () => {
   await assert.rejects(() => bank.load(/** @type {any} */ (null)), TypeError);
   assert.equal(await bank.load(async () => null), 'failed');
 });
+
+// ---- 0.5.2 BOOT-NET: prefetch through a download lane in group order, decode later
+
+/** A fake lane that records adds / bumps and runs jobs in priority order when the test says so. */
+function fakeLane() {
+  const jobs = [];
+  const bumps = [];
+  const lane = {
+    add({ id, priority, run }) {
+      const existing = jobs.find((j) => j.id === id);
+      if (existing) return existing.promise;
+      const job = { id, priority, run };
+      job.promise = new Promise((resolve, reject) => { job.start = () => run({ signal: null }).then(resolve, reject); });
+      jobs.push(job);
+      return job.promise;
+    },
+    bump(id, priority) { bumps.push([id, priority]); const j = jobs.find((x) => x.id === id); if (j) j.priority = priority; },
+    async drain() { for (const j of [...jobs].sort((a, b) => a.priority - b.priority)) await j.start(); },
+    jobs, bumps,
+  };
+  return lane;
+}
+
+test('prefetch_fetchesGroupsThroughTheLane_inPriorityOrder_andLoadDecodesTheHeldBytesWithoutRefetching', async () => {
+  // Arrange
+  const ctx = new FakeAudioContext();
+  const fetch = fakeFetch(FILES);
+  const lane = fakeLane();
+  const bank = createSampleBank({ manifest: manifest(), resolveUrl: (f) => `b/${f}`, fetch, warn: () => {}, lane });
+  // Act: fight first (30), music behind it (31); nothing goes over the wire until the lane runs
+  const pf = bank.prefetch({ groups: ['fight'], priority: 30 });
+  const pm = bank.prefetch({ groups: ['music'], priority: 31 });
+  assert.equal(fetch.calls.length, 0);
+  assert.deepEqual(lane.jobs.map((j) => j.id), ['bank:impact_heavy_01.m4a', 'bank:impact_heavy_02.m4a', 'bank:impact_heavy_03.m4a', 'bank:impact_light_01.m4a', 'bank:missing.m4a', 'bank:corrupt.m4a', 'bank:score_loop.m4a']);
+  await lane.drain();
+  await Promise.all([pf, pm]);
+  // Assert: every file fetched once, fight before music; held, not decoded
+  assert.equal(fetch.calls.at(-1), 'b/score_loop.m4a');
+  assert.equal(bank.loaded(), 0);
+  assert.equal(bank.status(), 'idle');
+  assert.equal(bank.get('impact_heavy').raw.every((r) => r !== null), true);
+  assert.deepEqual(bank.get('broken').raw.map((r) => r !== null), [false, true], 'missing.m4a (404) is not held');
+  assert.notEqual(bank.get('score_loop').raw[0], null);
+  // Act: the gesture arrives -> decode
+  const before = fetch.calls.length;
+  await bank.load((ab) => ctx.decodeAudioData(ab), { groups: ['fight'] });
+  // Assert: nothing re-fetched, fight decoded, music still held
+  assert.equal(fetch.calls.length, before);
+  assert.equal(bank.ready('impact_heavy'), true);
+  assert.equal(bank.get('impact_heavy').raw.every((r) => r === null), true, 'held bytes freed after decode');
+  assert.equal(bank.ready('score_loop'), false);
+  assert.notEqual(bank.get('score_loop').raw[0], null, 'music stays held until asked');
+  await bank.load((ab) => ctx.decodeAudioData(ab));
+  assert.equal(bank.ready('score_loop'), true);
+  assert.equal(bank.status(), 'partial', 'broken stays failed; everything else decoded');
+});
+
+test('prefetch_again_moreUrgently_bumpsQueuedFiles_aLazierAskDoesNot', async () => {
+  // Arrange
+  const lane = fakeLane();
+  const bank = createSampleBank({ manifest: manifest(), resolveUrl: (f) => `b/${f}`, fetch: fakeFetch(FILES), warn: () => {}, lane });
+  bank.prefetch({ groups: ['music'], priority: 35 });
+  // Act: the score is wanted sooner
+  bank.prefetch({ ids: ['score_loop'], priority: 12 });
+  // Assert
+  assert.deepEqual(lane.bumps, [['bank:score_loop.m4a', 12]]);
+  bank.prefetch({ groups: ['music'], priority: 40 }); // the regression: a lazier ask (load() at the gesture) demoted queued clips
+  assert.deepEqual(lane.bumps, [['bank:score_loop.m4a', 12]], 'a lazier ask never demotes');
+});

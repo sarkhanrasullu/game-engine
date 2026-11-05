@@ -111,3 +111,32 @@ test('stageStore_dispose_freesAssetAndEnv_once', async () => {
   assert.equal(s.get(), null);
   assert.equal(s.env(), null);
 });
+
+// ---- 0.5.2 BOOT-NET: the stage downloads through a shared lane (behind the heroes), lite as a function
+
+test('stageStore_sharedLane_queuesBehindHeroPriority_andLiteFunctionIsReadAtFetch', async () => {
+  // Arrange
+  const { createDownloadLane } = await import('../../src/assets/download-lane.js');
+  const lane = createDownloadLane();
+  const ran = [];
+  const m = { ...stageManifestJson() };
+  m.assets = m.assets.map((a) => ({ ...a, lite: { file: 'arena.lite.glb', bytes: 1, maxMap: 1024 } }));
+  let slow = false;
+  const s = createStageAssetStore({
+    cfg: STAGE_CFG, lane, log: () => {},
+    fetchBytes: async (url) => { ran.push(url); return url.endsWith('manifest.json') ? enc(m) : new ArrayBuffer(16); },
+    createLoader: async () => ({ loader: {}, dispose() {} }),
+    loadAsset: async () => ({ draws: () => 1, dispose() {} }),
+    bakeEnv: () => ({ texture: {}, dispose() {} }),
+  });
+  // Act: the stage is asked first, a hero job (10) right after; the rule flips to lite before the lane starts
+  const p = s.preload({ tier: 'high', renderer: {}, lite: () => slow });
+  lane.add({ id: 'hero:a', priority: 10, run: async () => { ran.push('hero:a'); } });
+  slow = true;
+  await p;
+  // Assert
+  assert.deepEqual(ran, ['hero:a', `${STAGE_CFG.base}${STAGE_CFG.manifest}`, `${STAGE_CFG.base}arena.lite.glb`]);
+  assert.ok(s.get());
+  assert.equal(s.stats[0].file, 'arena.lite.glb');
+  assert.equal(s.lane, lane);
+});

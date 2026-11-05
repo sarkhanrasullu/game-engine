@@ -134,6 +134,29 @@ export function renderBank(mod, outDir, { only = [], wavOnly = false, ffmpeg = '
   return manifest;
 }
 
+/**
+ * Rewrite ONLY the `group` of every clip in an existing manifest from the recipes (a load-order change
+ * never re-encodes audio: the files, seeds and measurements stay byte-identical). Pure given the inputs.
+ * Throws when a recipe has no clip in the manifest (render it first).
+ * @param {object} manifest parsed manifest.json
+ * @param {{RECIPES: readonly {id: string, group?: string}[]}} mod the recipe module
+ * @returns {{manifest: object, changed: string[]}} the same manifest object (mutated) and the ids whose group changed
+ * @example const { changed } = regroupManifest(manifest, recipes); writeFileSync(path, JSON.stringify(manifest, null, 1));
+ */
+export function regroupManifest(manifest, mod) {
+  const changed = [];
+  for (const recipe of mod.RECIPES) {
+    const clip = manifest.clips?.[recipe.id];
+    if (!clip) throw new Error(`regroupManifest: ${recipe.id} is not in the manifest (render it first)`);
+    const group = recipe.group ?? 'default';
+    if (clip.group !== group) {
+      clip.group = group;
+      changed.push(recipe.id);
+    }
+  }
+  return { manifest, changed };
+}
+
 if (process.argv[1] && basename(process.argv[1]) === 'render-bank.mjs') {
   const [recipesPath, outDir, ...rest] = process.argv.slice(2);
   if (!recipesPath || !outDir) {
