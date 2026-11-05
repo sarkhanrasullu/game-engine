@@ -6,27 +6,27 @@
     "semantic_hash": "731f0d9828e12a4e727825f1889aa39a"
   },
   "package.json": {
-    "mtime": 1793857527.5391448,
-    "seen": 1793857538.679873,
-    "ast_hash": "5836f3f3e02fdc46e7bd8e26c9b64ea5",
+    "mtime": 1793860234.8987348,
+    "seen": 1793860237.10036,
+    "ast_hash": "cfb76a6762381ec2b14bea05f71ef9d3",
     "semantic_hash": ""
   },
   "src/ai/action-mix.js": {
-    "mtime": 1793840608.3866944,
-    "seen": 1793842866.190727,
-    "ast_hash": "273e177b5fd265400f6cdf2eca61d452",
+    "mtime": 1793860234.8991485,
+    "seen": 1793860237.1003609,
+    "ast_hash": "c734b44be1c79b46efcd4cce4d7304dd",
     "semantic_hash": ""
   },
   "src/ai/cpu-controller.js": {
-    "mtime": 1793842764.9797924,
-    "seen": 1793842866.190728,
-    "ast_hash": "a81227c2cad4b045e93605daff4184a1",
+    "mtime": 1793860234.8996406,
+    "seen": 1793860237.100362,
+    "ast_hash": "8e0cdad2b4c805359a5c057cc5db7a86",
     "semantic_hash": ""
   },
   "src/ai/difficulty.js": {
-    "mtime": 1793842764.9801157,
-    "seen": 1793842866.190729,
-    "ast_hash": "e3e7c7d8571cd619e2ae018f68aaba5f",
+    "mtime": 1793860234.8998928,
+    "seen": 1793860237.100363,
+    "ast_hash": "fefbf9b920e6f284549844dd253544be",
     "semantic_hash": ""
   },
   "src/ai/index.js": {
@@ -36,9 +36,9 @@
     "semantic_hash": "31be171721d2189122aac5a4b5e8f31d"
   },
   "src/ai/perception.js": {
-    "mtime": 1793836118.3630815,
-    "seen": 1793839702.943775,
-    "ast_hash": "b28839f8aa38407161440fa308b7b077",
+    "mtime": 1793860234.9003406,
+    "seen": 1793860237.100364,
+    "ast_hash": "5d5b85ebdd6a52c2e426e5455859ab92",
     "semantic_hash": ""
   },
   "src/ai/personalities.js": {
@@ -180,34 +180,34 @@
     "semantic_hash": ""
   },
   "src/render/scene.js": {
-    "mtime": 1793831196.2343795,
-    "seen": 1793834683.2577899,
-    "ast_hash": "58094eb3e82d6b31d59b3e8759ea810c",
+    "mtime": 1793860234.9008088,
+    "seen": 1793860237.100398,
+    "ast_hash": "ee51f2b895a7126fd58dc01b90c7226a",
     "semantic_hash": ""
   },
   "src/sim/duel-sim.js": {
-    "mtime": 1793836637.8523822,
-    "seen": 1793839702.943807,
-    "ast_hash": "5acd92bfab858b9e3406132d84d122b3",
+    "mtime": 1793860234.9011946,
+    "seen": 1793860237.100399,
+    "ast_hash": "a40e0f8c9bfa8431451eef3c76b0e00d",
     "semantic_hash": ""
   },
   "src/sim/fighter-config.js": {
-    "mtime": 1793822963.5124524,
-    "seen": 1793823860.8114188,
-    "ast_hash": "bcf727fd54339d3e3ced8886dc5009aa",
-    "semantic_hash": "bcf727fd54339d3e3ced8886dc5009aa"
+    "mtime": 1793860234.9014862,
+    "seen": 1793860237.1004002,
+    "ast_hash": "622cff83c75fd00a6d8b2db280ab8dc6",
+    "semantic_hash": ""
   },
   "src/sim/fighter.js": {
-    "mtime": 1793822963.5126238,
-    "seen": 1793823860.811433,
-    "ast_hash": "88204322f0677e2adbfa8d07944c2498",
-    "semantic_hash": "88204322f0677e2adbfa8d07944c2498"
+    "mtime": 1793860234.9017363,
+    "seen": 1793860237.100401,
+    "ast_hash": "8147904fbdc252bd30883edc5f6fa44f",
+    "semantic_hash": ""
   },
   "src/sim/frame-data.js": {
-    "mtime": 1793822963.512793,
-    "seen": 1793823860.811446,
-    "ast_hash": "fd212cd0c80167a006a5ec9af23505c5",
-    "semantic_hash": "fd212cd0c80167a006a5ec9af23505c5"
+    "mtime": 1793860234.9018583,
+    "seen": 1793860237.100401,
+    "ast_hash": "6cc5d113287910ba6eef9633b4f56f98",
+    "semantic_hash": ""
   },
   "src/sim/hurtbox.js": {
     "mtime": 1793822963.5128953,
@@ -234,10 +234,10 @@
     "semantic_hash": ""
   },
   "src/sim/movement-config.js": {
-    "mtime": 1793822963.5135827,
-    "seen": 1793823860.8115158,
-    "ast_hash": "65c8517873da49cfed0ce4b7c6e73443",
-    "semantic_hash": "65c8517873da49cfed0ce4b7c6e73443"
+    "mtime": 1793860234.9025955,
+    "seen": 1793860237.100406,
+    "ast_hash": "9f668697e06033e987c1b0b7d979fe68",
+    "semantic_hash": ""
   },
   "src/sim/movement.js": {
     "mtime": 1793822963.5136812,
@@ -246,16 +246,16 @@
     "semantic_hash": "e6e29d9ae90d08d36ff5ec6d2cd73955"
   },
   "src/sim/moves.js": {
-    "mtime": 1793840526.4936628,
-    "seen": 1793842866.19077,
-    "ast_hash": "3026b15f2007020cecc33b3071e3a81d",
+    "mtime": 1793860234.9029322,
+    "seen": 1793860237.1004071,
+    "ast_hash": "6abf20c60d3fe37c4a73a301dcc3247b",
     "semantic_hash": ""
   },
   "src/sim/poses.js": {
-    "mtime": 1793822963.5139213,
-    "seen": 1793823860.811564,
-    "ast_hash": "ef11338eeef007154a83a12f18685fc7",
-    "semantic_hash": "ef11338eeef007154a83a12f18685fc7"
+    "mtime": 1793860234.9032493,
+    "seen": 1793860237.100408,
+    "ast_hash": "0d4473ad020343d5eb61739db5c74d3d",
+    "semantic_hash": ""
   },
   "src/sim/ruleset.js": {
     "mtime": 1793836044.6732981,
@@ -264,9 +264,9 @@
     "semantic_hash": ""
   },
   "src/sim/state-machine.js": {
-    "mtime": 1793835852.6348765,
-    "seen": 1793839702.943819,
-    "ast_hash": "87d931d8974bd28c65ef3f3cdf3fba7a",
+    "mtime": 1793860234.9033988,
+    "seen": 1793860237.1004102,
+    "ast_hash": "c8ab45b3ebae8447b79f0267cc897b35",
     "semantic_hash": ""
   },
   "src/storage/index.js": {
@@ -318,10 +318,10 @@
     "semantic_hash": "4e069d2834b04954253860c6f2e4575c"
   },
   "test/core/data.test.js": {
-    "mtime": 1793822963.5154257,
-    "seen": 1793823860.811727,
-    "ast_hash": "8f32a2ab2cd8321b4b649c7ab5779979",
-    "semantic_hash": "8f32a2ab2cd8321b4b649c7ab5779979"
+    "mtime": 1793860234.9037473,
+    "seen": 1793860237.100429,
+    "ast_hash": "6373d93d07ac1a10c1e8caa2238d4c0a",
+    "semantic_hash": ""
   },
   "test/core/hitstop.test.js": {
     "mtime": 1793822963.5156431,
@@ -367,10 +367,10 @@
     "semantic_hash": "a156d2f36842a219494609b086cedb7d"
   },
   "test/fixtures/bound/fighter-config.js": {
-    "mtime": 1793822963.5166354,
-    "seen": 1793823860.811815,
-    "ast_hash": "cb5fa165fab7dd9aaa1afaf11f4afd2b",
-    "semantic_hash": "cb5fa165fab7dd9aaa1afaf11f4afd2b"
+    "mtime": 1793860234.9039702,
+    "seen": 1793860237.100436,
+    "ast_hash": "c6add3b0b60965e7f298673b3f0a1bc9",
+    "semantic_hash": ""
   },
   "test/fixtures/bound/fighter.js": {
     "mtime": 1793822963.5167196,
@@ -403,10 +403,10 @@
     "semantic_hash": "c40f43e5a4c097c9c4e54ca3d2f8f3ec"
   },
   "test/fixtures/bound/movement-config.js": {
-    "mtime": 1793822963.5174322,
-    "seen": 1793823860.8119009,
-    "ast_hash": "a341e2bc9111aa7a86f67627b6097017",
-    "semantic_hash": "a341e2bc9111aa7a86f67627b6097017"
+    "mtime": 1793860234.9041808,
+    "seen": 1793860237.100441,
+    "ast_hash": "a260d1b8f32479f8f0eb85c002f2ae4c",
+    "semantic_hash": ""
   },
   "test/fixtures/bound/movement.js": {
     "mtime": 1793822963.517547,
@@ -427,10 +427,10 @@
     "semantic_hash": "2689f2796d032adae96d02dd43f7a9c2"
   },
   "test/fixtures/bound/state-machine.js": {
-    "mtime": 1793822963.5179427,
-    "seen": 1793823860.811958,
-    "ast_hash": "7905497d0e950ea615aa84ec12ca33a4",
-    "semantic_hash": "7905497d0e950ea615aa84ec12ca33a4"
+    "mtime": 1793860234.904423,
+    "seen": 1793860237.1004438,
+    "ast_hash": "64569a1dca735e03f1fb00d40e67e2fb",
+    "semantic_hash": ""
   },
   "test/fixtures/combat_tuning.json": {
     "mtime": 1793822963.5180864,
@@ -476,10 +476,10 @@
     "semantic_hash": "ae99a0f981677bdf84b25eccc7aaa86b"
   },
   "test/sim/duel-sim.test.js": {
-    "mtime": 1793822963.5192645,
-    "seen": 1793823860.812055,
-    "ast_hash": "b17e2a92696fe34247bec800e4a66525",
-    "semantic_hash": "b17e2a92696fe34247bec800e4a66525"
+    "mtime": 1793860234.9047194,
+    "seen": 1793860237.100459,
+    "ast_hash": "81c5666c0d4209630ace2d82e70e8cfb",
+    "semantic_hash": ""
   },
   "test/sim/frame-data.test.js": {
     "mtime": 1793822963.5193675,
@@ -500,10 +500,10 @@
     "semantic_hash": "e4f596cd1dc8885946d2355d969316f6"
   },
   "test/sim/state-machine.test.js": {
-    "mtime": 1793822963.51973,
-    "seen": 1793823860.812106,
-    "ast_hash": "356f5f64f57eb016edecaa3b6d648e15",
-    "semantic_hash": "356f5f64f57eb016edecaa3b6d648e15"
+    "mtime": 1793860234.906084,
+    "seen": 1793860237.1004648,
+    "ast_hash": "9189db44d7b2746f9acf6a0cb58e712b",
+    "semantic_hash": ""
   },
   "test/storage/storage.test.js": {
     "mtime": 1793822963.519878,
@@ -662,9 +662,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793857527.567525,
-    "seen": 1793857538.6800041,
-    "ast_hash": "67ef30fa98bebb937fe848a44b15ae5a",
+    "mtime": 1793860234.898145,
+    "seen": 1793860237.1004758,
+    "ast_hash": "8d0b526fcbec76694ccc28e5092a0f8e",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -908,9 +908,9 @@
     "semantic_hash": ""
   },
   "src/sim/hazards.js": {
-    "mtime": 1793836951.082084,
-    "seen": 1793839702.9438112,
-    "ast_hash": "294104556dc8dfad13badf5db15849bb",
+    "mtime": 1793860234.902329,
+    "seen": 1793860237.1004019,
+    "ast_hash": "36f257b4e4ff8cac1754276cfc2abc01",
     "semantic_hash": ""
   },
   "test/ai/hazard-perception.test.js": {
@@ -973,10 +973,46 @@
     "ast_hash": "b572b2282c1020df4880ac358d1c0f2a",
     "semantic_hash": ""
   },
+  "test/ai/fight-systems.test.js": {
+    "mtime": 1793860234.903511,
+    "seen": 1793860237.100414,
+    "ast_hash": "7fcf3c9e5b6c6f01c047bb76a16a323b",
+    "semantic_hash": ""
+  },
+  "test/sim/counter-hit.test.js": {
+    "mtime": 1793860234.9045966,
+    "seen": 1793860237.100457,
+    "ast_hash": "cd281fc89fbdc4d21f6cf156b1bac3da",
+    "semantic_hash": ""
+  },
+  "test/sim/sidestep-cancel.test.js": {
+    "mtime": 1793860234.9048076,
+    "seen": 1793860237.100464,
+    "ast_hash": "424025cd078e5e6029e193910365b4c2",
+    "semantic_hash": ""
+  },
+  "test/sim/tech-window.test.js": {
+    "mtime": 1793860234.906192,
+    "seen": 1793860237.100466,
+    "ast_hash": "42f10d4ea309866d201e5d5db6cc0e83",
+    "semantic_hash": ""
+  },
+  "test/sim/throw-tech.test.js": {
+    "mtime": 1793860234.906381,
+    "seen": 1793860237.100466,
+    "ast_hash": "2558b4fd174f1ab30a9936d446e853a4",
+    "semantic_hash": ""
+  },
+  "test/sim/vent.test.js": {
+    "mtime": 1793860234.9064934,
+    "seen": 1793860237.100467,
+    "ast_hash": "ddb527cb387fef63c4e13159af0c6054",
+    "semantic_hash": ""
+  },
   "package-lock.json": {
-    "mtime": 1793857527.5395446,
-    "seen": 1793857538.680009,
-    "ast_hash": "ce14c0a04e232104e8ccfd2c713c1ad3",
+    "mtime": 1793860234.898344,
+    "seen": 1793860237.10048,
+    "ast_hash": "cdce2b0aef26afeebb9a2b821d6e371b",
     "semantic_hash": ""
   }
 }
