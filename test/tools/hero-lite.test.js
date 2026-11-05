@@ -177,3 +177,24 @@ test('buildInlinePayload_injectedSets_filtersIdsAndCarriesTranscoder', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('applyIdsOverride_replacesIdsOnHeroKindSetsOnly_leavesStageAndUnkindedSets', async () => {
+  // ENGINE-SMALL (STAGE2-ART): `--ids` used to replace the ids of EVERY set that declared one, so a
+  // hero pick on the CLI also dropped the stage set. It now scopes to `kind: 'heroes'`.
+  const { applyIdsOverride } = await import('../../tools/hero-lite.mjs');
+  // Arrange
+  const sets = [
+    { dir: 'h', prefix: 'heroes', kind: 'heroes', ids: ['a', 'b'] },
+    { dir: 's', prefix: 'stage', kind: 'stage', ids: ['dais'] },
+    { dir: 'x', prefix: 'extra', ids: ['one'] }, // no kind: not a hero set, untouched
+    { dir: 'all', prefix: 'all', kind: 'heroes' }, // hero set without ids (= every asset): the pick narrows it
+  ];
+  // Act
+  const out = applyIdsOverride(sets, ['c']);
+  // Assert
+  assert.deepEqual(out.map((s) => s.ids), [['c'], ['dais'], ['one'], ['c']]);
+  assert.deepEqual(sets.map((s) => s.ids), [['a', 'b'], ['dais'], ['one'], undefined], 'input not mutated');
+  assert.equal(applyIdsOverride(sets, undefined), sets, 'no override: same sets');
+  assert.throws(() => applyIdsOverride(sets, []), /ids/);
+  assert.throws(() => applyIdsOverride(sets, 'c'), /ids/);
+});

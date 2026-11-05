@@ -2,6 +2,45 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
+## 0.5.1 (2026-11-05)
+
+Heroes on demand (consumer UX-2: a premium first minute on a slow connection). Additive; `preload()` /
+`whenReady()` / `get()` behave as before.
+
+- `./assets` `createHeroAssetStore`: heroes download ONE AT A TIME through a priority queue.
+  `load(fighterId, o)` queues one hero at the front (asking again for a queued hero moves it to the front:
+  the hero the player just swiped to is next); `preload(o)` queues every configured fighter in order behind
+  it; `whenLoaded(fighterId, ms)` is the bounded per-hero wait; `status(fighterId)` reports `HERO_LOAD`
+  (`idle` / `loading` / `ok` / `failed`; `whenLoaded(id)` with no bound subscribes without reordering); the manifest is fetched once and the loader stack (KTX2 workers) is
+  released whenever the queue drains. New option `onProgress({ id, loaded, total })`: download bytes as they
+  stream (total = Content-Length, else the manifest's `bytes`, else 0).
+- `./assets` `createStageAssetStore`: the same `onProgress` option (id = `cfg.id`).
+- `./assets` both stores: `preload({ lite: true })` / `load(id, { lite: true })` force the manifest's lite file
+  whatever the tier (the consumer's slow-link rule); default unchanged (lite tiers and inline artifacts only).
+- `./assets` `fetchBytesWithProgress(url, onBytes)`: the default network fetch, streaming when a progress
+  callback is given.
+- Tests: `test/assets/hero-asset.test.js` +4 (queue order, bounded per-hero wait, byte progress, manifest
+  total fallback). Suite 297 -> 301.
+- `./audio` hit-frame cost tools (AUDIO-PERF, `src/audio/node-pool.js`): `createNodePool(ctx, { gain,
+  biquad, panner })` — reusable processing nodes a voice borrows and releases (`fill(n)` per quiet frame,
+  `release(node, freeAt)` disconnects, cancels automation from `freeAt` and holds the defaults there,
+  overflow created fresh and counted in `stats()`); `createWaveWarmer(ctx, waves)` assigns each
+  OscillatorNode type once (Chromium builds the PeriodicWave tables lazily at ~1.5 ms per type, 8-11 ms
+  at a 6x CPU throttle — the only audio spike of a phone-class fight); `collectOscillatorWaves(tree)`,
+  `OSCILLATOR_WAVES`, `POOL_KINDS`. Schema: optional `voices.pool`, `voices.warmup_per_tick`,
+  `voices.low_tier { global_cap, max_partials, ring_partials }` validated by `buildSfxData`.
+  Tests: `test/audio/node-pool.test.js` (7), `sfx-schema.test.js` +1.
+- `./sim` `MatchFlow.abort()` (ENGINE-SMALL): the quit path — parks the flow in IDLE from any state,
+  emits no match-end work, clears `result` / `lastRound`, keeps `settings` for a restart; no-op in IDLE.
+  Tests: `test/sim/match-flow.test.js` +2.
+- `./tools/check-bundle-size.mjs`: "main" is now the eager TOTAL of every `dist/assets/*.js` chunk no
+  `lazy` regex matches (new `limits.lazy: RegExp | RegExp[]`; the old `lazyLoader`-only shape still
+  works), with a per-chunk eager / lazy breakdown in `lines` and `chunks` — a chunk the bundler hoists out
+  of the entry (the consumer's 269 KB `BufferGeometryUtils` after a top-level await) can no longer hide
+  from the gate. Tests +2.
+- `./tools/hero-lite.mjs`: `--ids` scopes to sets declared `kind: 'heroes'` (`applyIdsOverride`,
+  `AssetSet.kind`); a stage set keeps its ids. Test +1.
+
 ## 0.5.0 (2026-11-05)
 
 The CPU pilot learns footsies. Behaviour changes for every consumer that uses `CpuPilot`, which is why

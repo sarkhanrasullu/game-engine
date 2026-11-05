@@ -75,7 +75,7 @@ Every public function has a JSDoc `@example`. Read `src/<subpath>/index.js` for 
 | `./ai` | `CpuPilot` (input-snapshot fairness model), delayed perception, `buildDifficultySet`, `buildPersonalities`, `ActionMix` |
 | `./input` | input snapshot, `InputState`, `DoubleTapDetector`, touch stick and buttons, `attachKeyboard`, handedness helpers. Tuning and key bindings are injected |
 | `./render` | `QUALITY_CONFIG` defaults, `QualityGovernor` / `resolveTiers` / `materialTierFor` / `canReachBloom`, `supportsHalfFloatTargets`, PMREM environment (`getHeroEnvironment`, `ENV_PANELS`) and bloom composer (`createHeroComposer`), `computeFraming`, `createCameraDirector`, `createRenderer` / `createScene` (stage, fighter view, lighting and feel injected; one `dispose()` teardown path). The quality storage key, bloom params, camera feel, framing and env panels are injectable |
-| `./audio` | SFX data schema (`buildSfxData` with an injected cue list, `validateLayer`, `dbToGain`), rate-limited `createHaptics` |
+| `./audio` | SFX data schema (`buildSfxData` with an injected cue list, `validateLayer`, `dbToGain`), sample banks, the shared acoustic space + harmonic lift, rate-limited `createHaptics`, and the hit-frame cost tools `createNodePool` / `createWaveWarmer` |
 | `./storage` | `createSettingsStorage` (never throws, memory fallback), versioned save core `createSave(store, {key, version, defaults, sanitize, migrations})` / `loadSave` |
 
 | `./tools/*` | Build tools: `check-bundle-size.mjs`, `hero-lite.mjs`, `vite-hero-assets.mjs` (asset sets and limits injected) |

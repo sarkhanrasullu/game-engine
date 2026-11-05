@@ -124,6 +124,34 @@ function validateMixExtras(mix, fail) {
   if (c !== undefined && (!fin(c.thresholdDb) || !(c.ratio >= 1))) fail('mix.combat_comp needs threshold_db and ratio >= 1');
 }
 
+/** Node kinds `voices.pool` may size (node-pool.js POOL_KINDS; listed here so the schema stays WebAudio-free). */
+const POOL_NODE_KINDS = ['gain', 'biquad', 'panner'];
+const nonNegInt = (v) => Number.isInteger(v) && v >= 0;
+
+/**
+ * Optional `voices` sections (AUDIO-PERF): `pool` (reusable node counts per kind), `warmup_per_tick`
+ * (nodes built per quiet frame while the pool fills) and `low_tier` (the lowest perf tier's caps:
+ * `global_cap` concurrent event instances, `max_partials` modes per partials layer (0 = uncapped),
+ * `ring_partials` false drops the additive ring layers that double a sample body).
+ */
+function validateVoicesExtras(v, fail) {
+  if (v.pool !== undefined) {
+    if (!v.pool || typeof v.pool !== 'object') fail('voices.pool must be an object of node counts');
+    for (const [k, n] of Object.entries(v.pool)) {
+      if (!POOL_NODE_KINDS.includes(k)) fail(`voices.pool: unknown node kind ${k}`);
+      if (!nonNegInt(n)) fail(`voices.pool.${k} must be an integer >= 0`);
+    }
+  }
+  if (v.warmupPerTick !== undefined && !(Number.isInteger(v.warmupPerTick) && v.warmupPerTick >= 1)) fail('voices.warmup_per_tick must be an integer >= 1');
+  const lt = v.lowTier;
+  if (lt !== undefined) {
+    if (!lt || typeof lt !== 'object') fail('voices.low_tier must be an object');
+    if (lt.globalCap !== undefined && !(Number.isInteger(lt.globalCap) && lt.globalCap >= 1 && lt.globalCap <= v.globalCap)) fail('voices.low_tier.global_cap must be an integer in 1..global_cap');
+    if (lt.maxPartials !== undefined && !nonNegInt(lt.maxPartials)) fail('voices.low_tier.max_partials must be an integer >= 0');
+    if (lt.ringPartials !== undefined && typeof lt.ringPartials !== 'boolean') fail('voices.low_tier.ring_partials must be a boolean');
+  }
+}
+
 /**
  * Map, validate and freeze the SFX table. Throws on missing events, unknown buses/ducks or a bad layer.
  * @example const sfx = buildSfxData(JSON.parse(text), ['hit_light', 'ko']); sfx.events.hit_light.peakDb; // -6
@@ -138,6 +166,7 @@ export function buildSfxData(json, requiredEvents) {
   for (const b of Object.keys(d.mix.busDb)) if (!BUSES.includes(b)) fail(`mix.bus_db: unknown bus ${b}`);
   validateMixExtras(d.mix, fail);
   if (!(d.voices.globalCap >= 1) || !(d.voices.ringSize >= 1)) fail('voices caps must be >= 1');
+  validateVoicesExtras(d.voices, fail);
   for (const id of requiredEvents) {
     const e = d.events[id];
     if (!e) fail(`event ${id} missing`);

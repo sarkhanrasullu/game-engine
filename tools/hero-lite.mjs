@@ -17,7 +17,8 @@
 //   node tools/hero-lite.mjs <in.glb> <out.glb> [--max 1024]
 //   node tools/hero-lite.mjs --inline-json <out.json> --config <config.mjs> [--ids a,b] [--max 1024]
 //     <config.mjs> exports `INLINE_CONFIG` (or a default) of the InlineConfig shape (see buildInlinePayload).
-//     --ids replaces the `ids` of every set that declares one (sets without `ids` always take all assets).
+//     --ids replaces the `ids` of the sets declared `kind: 'heroes'` only (applyIdsOverride); a stage
+//     set, or a set without a kind, keeps its own ids (or all assets when it declares none).
 
 import { readFileSync, realpathSync, writeFileSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -228,7 +229,28 @@ export function makeLiteGlb(glb, maxSize = 1024) {
  * @property {string} dir folder holding `manifest.json` ({ assets: [{ id, file, ... }] }) and the .glb files
  * @property {string} prefix URL prefix the files are served under, e.g. 'heroes' -> 'heroes/<file>'
  * @property {string[]} [ids] manifest ids to include; omitted = every asset in the manifest
+ * @property {'heroes'|'stage'|string} [kind] what the set holds. Only `kind: 'heroes'` sets take the
+ *   CLI's `--ids` pick (applyIdsOverride); a set without a kind is never touched by it.
  */
+
+/**
+ * Apply a CLI `--ids` pick to the hero-kind sets only: every set with `kind: 'heroes'` gets `ids`
+ * (whether or not it declared its own), every other set — stage, or no kind — is returned as is. Pure:
+ * returns new set objects, the input is not mutated; with `ids` undefined the input array is returned.
+ * @param {AssetSet[]} sets
+ * @param {string[] | undefined} ids non-empty list of manifest ids, or undefined for "no override"
+ * @returns {AssetSet[]}
+ * @example
+ * applyIdsOverride([{ dir: 'h', prefix: 'heroes', kind: 'heroes', ids: ['a'] }, { dir: 's', prefix: 'stage', kind: 'stage', ids: ['dais'] }], ['b'])
+ * // -> [{ ..., kind: 'heroes', ids: ['b'] }, { ..., kind: 'stage', ids: ['dais'] }]
+ */
+export function applyIdsOverride(sets, ids) {
+  if (ids === undefined) return sets;
+  if (!Array.isArray(ids) || ids.length === 0 || ids.some((id) => typeof id !== 'string' || id.length === 0)) {
+    throw new Error('hero-lite: --ids must be a non-empty list of manifest ids');
+  }
+  return sets.map((s) => (s.kind === 'heroes' ? { ...s, ids: [...ids] } : s));
+}
 
 /**
  * @typedef {object} InlineConfig
@@ -308,7 +330,7 @@ if (isMain) {
       process.exit(2);
     }
     const cfg = await loadInlineConfig(configPath);
-    const sets = idsOpt ? cfg.sets.map((s) => (s.ids ? { ...s, ids: idsOpt.split(',') } : s)) : cfg.sets;
+    const sets = applyIdsOverride(cfg.sets, idsOpt === undefined ? undefined : idsOpt.split(',').filter(Boolean));
     const payload = buildInlinePayload({ ...cfg, sets, maxSize: maxOpt !== undefined ? Number(maxOpt) : cfg.maxSize });
     writeFileSync(args[1], JSON.stringify(payload));
     console.log(`${args[1]}: ${Object.keys(payload).join(', ')}`);

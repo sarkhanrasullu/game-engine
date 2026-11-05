@@ -109,3 +109,33 @@ test('dbToGain', () => {
   assert.equal(dbToGain(0), 1);
   assert.ok(Math.abs(dbToGain(-6) - 0.501) < 0.001);
 });
+
+test('optional voices sections (AUDIO-PERF): pool counts, warmup_per_tick and low_tier caps are validated when present', () => {
+  const t = sfxFixture();
+  t.voices.pool = { gain: 96, biquad: 24, panner: 16 };
+  t.voices.warmup_per_tick = 24;
+  t.voices.low_tier = { global_cap: 6, max_partials: 4, ring_partials: false };
+  const d = buildSfxData(t, []);
+  assert.deepEqual(d.voices.pool, { gain: 96, biquad: 24, panner: 16 }, 'node kinds keep their names');
+  assert.equal(d.voices.warmupPerTick, 24);
+  assert.deepEqual(d.voices.lowTier, { globalCap: 6, maxPartials: 4, ringPartials: false });
+  assert.doesNotThrow(() => buildSfxData(sfxFixture(), []), 'every section optional');
+  const badKind = sfxFixture();
+  badKind.voices.pool = { oscillator: 4 };
+  assert.throws(() => buildSfxData(badKind, []), /unknown node kind oscillator/);
+  const badCount = sfxFixture();
+  badCount.voices.pool = { gain: -1 };
+  assert.throws(() => buildSfxData(badCount, []), /voices.pool.gain/);
+  const badWarm = sfxFixture();
+  badWarm.voices.warmup_per_tick = 0;
+  assert.throws(() => buildSfxData(badWarm, []), /warmup_per_tick/);
+  const badCap = sfxFixture();
+  badCap.voices.low_tier = { global_cap: 9 }; // above global_cap 8
+  assert.throws(() => buildSfxData(badCap, []), /low_tier.global_cap/);
+  const badModes = sfxFixture();
+  badModes.voices.low_tier = { max_partials: 1.5 };
+  assert.throws(() => buildSfxData(badModes, []), /max_partials/);
+  const badRing = sfxFixture();
+  badRing.voices.low_tier = { ring_partials: 'no' };
+  assert.throws(() => buildSfxData(badRing, []), /ring_partials/);
+});

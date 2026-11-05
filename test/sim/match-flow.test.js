@@ -229,3 +229,69 @@ test('update in IDLE does nothing', () => {
   assert.equal(flow.state, MATCH_STATE.IDLE);
   assert.equal(log.length, 0);
 });
+
+test('abort parks the flow in IDLE from any state, emits nothing, keeps settings, and allows a new start', () => {
+  // ENGINE-SMALL: the quit path. Mid-FIGHT with a score on the board.
+  const { flow, log } = make();
+  flow.startMatch({ difficulty: 'easy', fighter: 'guest' });
+  koRound(flow, 0);
+  run(flow, RULES.introSeconds + DT);
+  assert.equal(flow.state, MATCH_STATE.FIGHT);
+  flow.update(DT, 0.4, 1);
+  log.length = 0;
+  // Act
+  flow.abort();
+  // Assert: IDLE, no match-end work, no fields a host would read as a finished match.
+  assert.equal(flow.state, MATCH_STATE.IDLE);
+  assert.equal(log.length, 0);
+  assert.equal(flow.stateTime, 0);
+  assert.equal(flow.result, null);
+  assert.equal(flow.lastRound, null);
+  assert.equal(flow.inputsLive, false);
+  assert.equal(flow.timeScale, 1);
+  assert.equal(flow.introCount, 0);
+  assert.equal(flow.settings.difficulty, 'easy', 'settings survive so the host can restart with them');
+  run(flow, 5);
+  assert.equal(log.length, 0, 'update in IDLE after abort does nothing');
+  // A new match starts cleanly from the aborted flow (startMatch allows IDLE).
+  flow.startMatch(flow.settings);
+  assert.deepEqual(log.map((e) => e[0]), [MATCH_EVENT.MATCH_START, MATCH_EVENT.ROUND_START]);
+  assert.deepEqual(flow.wins, [0, 0]);
+  assert.equal(flow.round, 1);
+  assert.equal(flow.durationSec, 0);
+});
+
+test('abort from ROUND_END slow-mo, MATCH_END, RESULT and IDLE is silent and idempotent', () => {
+  const { flow, log } = make();
+  flow.abort(); // IDLE -> IDLE, nothing to do
+  assert.equal(flow.state, MATCH_STATE.IDLE);
+  assert.equal(log.length, 0);
+  // KO slow-mo: timeScale would be 0.25 here without the abort.
+  flow.startMatch();
+  run(flow, RULES.introSeconds + DT);
+  flow.update(DT, 1, 0);
+  assert.equal(flow.timeScale, RULES.koSlowMoScale);
+  log.length = 0;
+  flow.abort();
+  assert.equal(flow.timeScale, 1);
+  assert.equal(log.length, 0);
+  // MATCH_END: the result is already published; abort drops it and emits nothing more.
+  flow.startMatch();
+  koRound(flow, 1);
+  koRound(flow, 1);
+  assert.equal(flow.state, MATCH_STATE.MATCH_END);
+  const ends = log.filter((e) => e[0] === MATCH_EVENT.MATCH_END).length;
+  flow.abort();
+  assert.equal(flow.state, MATCH_STATE.IDLE);
+  assert.equal(flow.result, null);
+  assert.equal(log.filter((e) => e[0] === MATCH_EVENT.MATCH_END).length, ends);
+  // RESULT -> IDLE: then startMatch, not rematch, is the way on (rematch needs RESULT).
+  flow.startMatch();
+  koRound(flow, 0);
+  koRound(flow, 0);
+  run(flow, RULES.matchEndSeconds + DT);
+  assert.equal(flow.state, MATCH_STATE.RESULT);
+  flow.abort();
+  assert.throws(() => flow.rematch(), /rematch/);
+  assert.doesNotThrow(() => flow.startMatch());
+});

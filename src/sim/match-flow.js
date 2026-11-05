@@ -10,6 +10,7 @@
 //   ROUND_END --roundEndSeconds, match undecided----> INTRO      (ROUND_START)
 //   ROUND_END --roundEndSeconds, match decided------> MATCH_END  (MATCH_END = onMatchEnd hook)
 //   MATCH_END --matchEndSeconds elapsed-------------> RESULT
+//   any       --abort()-----------------------------> IDLE       (nothing emitted: the quit path)
 // Inputs are live only in FIGHT. Per-tick update() allocates nothing.
 
 /** Flow states. */
@@ -144,6 +145,25 @@ export class MatchFlow {
   rematch(changes = {}) {
     if (this.state !== MATCH_STATE.RESULT) throw new Error(`rematch: not allowed in state ${this.state}`);
     this.startMatch({ ...this.settings, ...changes });
+  }
+
+  /**
+   * The quit path: park the flow in IDLE from ANY state without finishing the match. Nothing is
+   * emitted — MATCH_END listeners (save stats, ad breaks, stingers) are for matches that ended — and
+   * `result` / `lastRound` are cleared so no host reads the aborted match as a finished one. `settings`
+   * survive, so a restart is `flow.startMatch(flow.settings)`. `wins`, `round` and `durationSec` are
+   * left as they were (startMatch resets them). Safe in IDLE (no-op) and after a match (RESULT -> IDLE;
+   * rematch() is then unavailable, startMatch() is the way on). Single-thread, allocation-free.
+   * @example
+   * // Pause sheet "Quit": stop the match where it stands, then show the menu.
+   * pause.onQuit = () => { flow.abort(); audio.stopLoop(); showMenu(); };
+   * // "Restart": same settings from round 1.
+   * pause.onRestart = () => { const s = flow.settings; flow.abort(); flow.startMatch(s); };
+   */
+  abort() {
+    this.lastRound = null;
+    this.result = null;
+    this.setState(MATCH_STATE.IDLE);
   }
 
   /** True only while fighting: intro, round end and result screens lock inputs. */

@@ -6,9 +6,9 @@
     "semantic_hash": "731f0d9828e12a4e727825f1889aa39a"
   },
   "package.json": {
-    "mtime": 1793843115.8933802,
-    "seen": 1793843137.569889,
-    "ast_hash": "caae673f827aa922de84eef12cd57cb4",
+    "mtime": 1793848091.5322177,
+    "seen": 1793849874.696568,
+    "ast_hash": "e79293af76657a6ac136d4fd6e4f484c",
     "semantic_hash": ""
   },
   "src/ai/action-mix.js": {
@@ -54,15 +54,15 @@
     "semantic_hash": ""
   },
   "src/audio/index.js": {
-    "mtime": 1793830358.6791005,
-    "seen": 1793834683.25777,
-    "ast_hash": "9b5285f420808f09a93668a28f2aea70",
+    "mtime": 1793848645.3294544,
+    "seen": 1793849874.6965818,
+    "ast_hash": "e26379d1ae5270aa425083940b0002b2",
     "semantic_hash": ""
   },
   "src/audio/sfx-schema.js": {
-    "mtime": 1793830245.6621568,
-    "seen": 1793830276.137929,
-    "ast_hash": "ecadebaacf485f536a83495c55ace4d4",
+    "mtime": 1793848659.0677874,
+    "seen": 1793849874.696585,
+    "ast_hash": "bc5a9cc08e1c91a0d70dfbf6a4c499ed",
     "semantic_hash": ""
   },
   "src/core/collision.js": {
@@ -228,9 +228,9 @@
     "semantic_hash": "e3394a897e5e281a09859db5bd598159"
   },
   "src/sim/match-flow.js": {
-    "mtime": 1793836062.2263794,
-    "seen": 1793839702.9438138,
-    "ast_hash": "8a559b4f4addbc616e4e3c0384cef217",
+    "mtime": 1793847804.1916165,
+    "seen": 1793848030.4052439,
+    "ast_hash": "2621f6a91f17770c2843bed7dccba215",
     "semantic_hash": ""
   },
   "src/sim/movement-config.js": {
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "test/audio/sfx-schema.test.js": {
-    "mtime": 1793830471.7918952,
-    "seen": 1793834683.257812,
-    "ast_hash": "92ac9a91cf3ee53e1b384eca82fcbe06",
+    "mtime": 1793848704.314332,
+    "seen": 1793849874.696629,
+    "ast_hash": "5da1209e97162db8f40f7824e5af635c",
     "semantic_hash": ""
   },
   "test/boundary.test.js": {
@@ -488,10 +488,10 @@
     "semantic_hash": "d930b3544b49097c991e0c71ac0a60cf"
   },
   "test/sim/match-flow.test.js": {
-    "mtime": 1793822963.5194767,
-    "seen": 1793823860.8120809,
-    "ast_hash": "2c19c827f2a7ea521e599e8d55f5802f",
-    "semantic_hash": "2c19c827f2a7ea521e599e8d55f5802f"
+    "mtime": 1793847786.398395,
+    "seen": 1793848030.4052951,
+    "ast_hash": "722a9d3f2c007815f6712e1ef087560e",
+    "semantic_hash": ""
   },
   "test/sim/movement.test.js": {
     "mtime": 1793822963.5195649,
@@ -518,9 +518,9 @@
     "semantic_hash": ""
   },
   "src/assets/hero-asset-store.js": {
-    "mtime": 1793829464.7699482,
-    "seen": 1793830276.137923,
-    "ast_hash": "dcbde1c9540f1d8ebdbf43ef7e3853bc",
+    "mtime": 1793849989.4795973,
+    "seen": 1793850421.071408,
+    "ast_hash": "66338345538f492abc222aea2678fdff",
     "semantic_hash": ""
   },
   "src/assets/hero-asset.js": {
@@ -542,9 +542,9 @@
     "semantic_hash": ""
   },
   "src/assets/stage-asset-store.js": {
-    "mtime": 1793829528.7275856,
-    "seen": 1793830276.1379259,
-    "ast_hash": "00ec519ba86b142a24f9ca4213263c75",
+    "mtime": 1793849698.12259,
+    "seen": 1793849874.696578,
+    "ast_hash": "654befc5bdea3104a56ba46f3dc4de97",
     "semantic_hash": ""
   },
   "src/assets/stage-asset.js": {
@@ -584,9 +584,9 @@
     "semantic_hash": ""
   },
   "test/assets/hero-asset.test.js": {
-    "mtime": 1793829813.8244019,
-    "seen": 1793830276.137963,
-    "ast_hash": "4ad565fafdaf36afe1fa1a664297feb9",
+    "mtime": 1793849989.4797184,
+    "seen": 1793850421.071456,
+    "ast_hash": "bef8a592210f3557ec12bc9bcfbc2881",
     "semantic_hash": ""
   },
   "test/assets/stage-asset-store.test.js": {
@@ -620,15 +620,15 @@
     "semantic_hash": ""
   },
   "test/tools/bundle-size.test.js": {
-    "mtime": 1793829417.374795,
-    "seen": 1793830276.137998,
-    "ast_hash": "7fd5b94123ff3ae5f2422a31e19166d1",
+    "mtime": 1793847695.997739,
+    "seen": 1793848030.405299,
+    "ast_hash": "03a07acbec3e4cb87fd5d3e19b73256f",
     "semantic_hash": ""
   },
   "test/tools/hero-lite.test.js": {
-    "mtime": 1793829469.8155403,
-    "seen": 1793830276.137999,
-    "ast_hash": "bb51e96012137135326d0ae3a43f1344",
+    "mtime": 1793847951.1763265,
+    "seen": 1793848030.4053,
+    "ast_hash": "6af62028c57a48070544a09eff96428d",
     "semantic_hash": ""
   },
   "test/tools/vite-hero-assets.test.js": {
@@ -638,15 +638,15 @@
     "semantic_hash": ""
   },
   "tools/check-bundle-size.mjs": {
-    "mtime": 1793829224.1183982,
-    "seen": 1793830276.1379998,
-    "ast_hash": "e109e7c237186a1d0ec417c87f3a993d",
+    "mtime": 1793847652.506442,
+    "seen": 1793848030.405304,
+    "ast_hash": "ec1a4dd32ba7143923434a9f969e11a5",
     "semantic_hash": ""
   },
   "tools/hero-lite.mjs": {
-    "mtime": 1793829297.505723,
-    "seen": 1793830276.138001,
-    "ast_hash": "1bc390550c61b6e75aea545a24b247f0",
+    "mtime": 1793847970.9020977,
+    "seen": 1793848030.4053051,
+    "ast_hash": "ffac1e0fc9749ec8bdc9a658928eddd2",
     "semantic_hash": ""
   },
   "tools/vite-hero-assets.mjs": {
@@ -662,9 +662,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793843100.9369395,
-    "seen": 1793843137.569985,
-    "ast_hash": "f5f8d4ac8f0a9da684fa65c643d56920",
+    "mtime": 1793850011.5941064,
+    "seen": 1793850421.071511,
+    "ast_hash": "f33907d3f6120cc8f7ae32f67236ddac",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -674,9 +674,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793831828.7753994,
-    "seen": 1793834683.257859,
-    "ast_hash": "b8539d0c4898dbb1bab0a82dd4c8e6a8",
+    "mtime": 1793849069.6234264,
+    "seen": 1793849874.6966789,
+    "ast_hash": "d02c5145322953151e754bacd4520c60",
     "semantic_hash": ""
   },
   "blender/build.py": {
@@ -935,6 +935,18 @@
     "mtime": 1793843012.9939044,
     "seen": 1793843137.5699358,
     "ast_hash": "9ca180c30ef2ca241a648417cf1663fa",
+    "semantic_hash": ""
+  },
+  "src/audio/node-pool.js": {
+    "mtime": 1793848556.088112,
+    "seen": 1793849874.6965828,
+    "ast_hash": "c13414395d252e4d09e8e7af117ed35b",
+    "semantic_hash": ""
+  },
+  "test/audio/node-pool.test.js": {
+    "mtime": 1793848843.9502478,
+    "seen": 1793849874.6966279,
+    "ast_hash": "93360936f0c4537381e5198ce9cd275b",
     "semantic_hash": ""
   },
   "package-lock.json": {
