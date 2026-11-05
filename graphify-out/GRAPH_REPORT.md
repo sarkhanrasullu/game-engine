@@ -1,17 +1,17 @@
 # Graph Report - game-engine  (2026-11-05)
 
 ## Corpus Check
-- 149 files · ~107,151 words
+- 150 files · ~113,299 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 3 file(s) not represented in the graph (top: (none) 3)
 
 ## Summary
-- 1229 nodes · 2637 edges · 59 communities (53 shown, 6 thin omitted)
-- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 50 edges (avg confidence: 0.85)
+- 1271 nodes · 2735 edges · 57 communities (53 shown, 4 thin omitted)
+- Extraction: 98% EXTRACTED · 2% INFERRED · 0% AMBIGUOUS · INFERRED: 52 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `c5198d04`
+- Built from commit: `b3f42937`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -21,7 +21,7 @@
 - ref_node_assert
 - ai-support.test.js
 - sim/duel-sim.js
-- ref_node_assert
+- sim/index.js
 - bake.py
 - cpu-controller.js
 - package.json
@@ -33,12 +33,12 @@
 - hero-lite.test.js
 - rig-contract.test.js
 - geo.js
-- Hitstop
+- intent.test.js
 - hazards.js
 - ref_node_assert
 - hardsurface.py
 - smoke_plate.py
-- hazards.test.js
+- sim/state-machine.js
 - build.py
 - createCameraDirector
 - armature.py
@@ -47,7 +47,7 @@
 - source-hash.test.js
 - FakeAudioContext
 - smoke_rig.py
-- MatchFlow
+- state-machine.test.js
 - FakeParam
 - scene-hooks.test.js
 - hazard-perception.test.js
@@ -64,38 +64,36 @@
 - sample-bank.test.js
 - pbr.py
 - haptics.test.js
-- .sample
+- scene.js
 - boundary.test.js
-- scene.py
+- frame-data.js
 - bind_world_three
-- environment.js
+- personalities.js
 - Hitstop
 - computeFraming
 - setup.sh
-- ActionMix
-- turntable.py
-- find_armature
+- ai-data.js
 
 ## God Nodes (most connected - your core abstractions)
-1. `three` - 22 edges
-2. `FakeAudioContext` - 22 edges
-3. `createScene()` - 21 edges
-4. `MatchFlow` - 19 edges
-5. `CpuPilot` - 18 edges
-6. `stepDuel()` - 16 edges
-7. `sec()` - 16 edges
-8. `createCameraDirector()` - 16 edges
+1. `CpuPilot` - 25 edges
+2. `three` - 22 edges
+3. `FakeAudioContext` - 22 edges
+4. `createScene()` - 21 edges
+5. `MatchFlow` - 19 edges
+6. `sec()` - 16 edges
+7. `createCameraDirector()` - 16 edges
+8. `stepDuel()` - 16 edges
 9. `FakeNode` - 15 edges
 10. `FakeParam` - 15 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `fight()` --calls--> `createDuel()`  [EXTRACTED]
-  test/ai/hazard-perception.test.js → src/sim/duel-sim.js
-- `fight()` --calls--> `stepDuel()`  [EXTRACTED]
-  test/ai/hazard-perception.test.js → src/sim/duel-sim.js
-- `tick()` --calls--> `stepDuel()`  [EXTRACTED]
-  test/sim/duel-helpers.js → src/sim/duel-sim.js
-- `tick()` --calls--> `stepDuel()`  [EXTRACTED]
+- `make()` --calls--> `FixedStepLoop`  [EXTRACTED]
+  test/core/loop.test.js → src/core/loop.js
+- `measure()` --calls--> `FrameDataTracker`  [EXTRACTED]
+  test/sim/frame-data.test.js → src/sim/frame-data.js
+- `imagelessGlb()` --calls--> `writeGlb()`  [EXTRACTED]
+  test/tools/vite-hero-assets.test.js → tools/hero-lite.mjs
+- `arena()` --calls--> `createDuel()`  [EXTRACTED]
   test/sim/hazards.test.js → src/sim/duel-sim.js
 - `rulesetWith()` --calls--> `createRuleset()`  [EXTRACTED]
   test/sim/hazards.test.js → src/sim/ruleset.js
@@ -103,39 +101,39 @@
 ## Import Cycles
 - None detected.
 
-## Communities (59 total, 6 thin omitted)
+## Communities (57 total, 4 thin omitted)
 
 ### Community 0 - "quality.test.js"
-Cohesion: 0.13
-Nodes (10): ADR-0001, canReachBloom(), ADR-0001, QUALITY_CONFIG, ADR-0001, materialTierFor(), QualityGovernor, resolveTiers() (+2 more)
+Cohesion: 0.15
+Nodes (10): ENV_PANELS, canReachBloom(), ADR-0001, QUALITY_CONFIG, ADR-0001, materialTierFor(), QualityGovernor, resolveTiers() (+2 more)
 
 ### Community 1 - "hero-asset.test.js"
-Cohesion: 0.06
-Nodes (53): three, createGltfLoader, ADR-0003, assignRoles(), HERO_JOINTS, ADR-0001, ADR-0003, loadHeroAsset() (+45 more)
+Cohesion: 0.05
+Nodes (57): three, createGltfLoader, ADR-0003, assignRoles(), HERO_JOINTS, ADR-0001, ADR-0003, loadHeroAsset() (+49 more)
 
 ### Community 2 - "ref_node_assert"
-Cohesion: 0.08
-Nodes (22): HANDEDNESS, resolveHandedness(), stickZoneSide(), createSnapshot(), DoubleTapDetector, InputState, attachThrowButton(), attachTouchButtons() (+14 more)
+Cohesion: 0.06
+Nodes (29): FixedStepLoop, SIM_HZ, HANDEDNESS, resolveHandedness(), stickZoneSide(), createSnapshot(), DoubleTapDetector, InputState (+21 more)
 
 ### Community 3 - "ai-support.test.js"
-Cohesion: 0.13
-Nodes (25): BEHAVIOUR_KEYS, buildBehaviour(), buildDifficulty(), buildDifficultySet(), DIFFICULTY_KEYS, difficultyFromQuery(), OPTIONAL_DIFFICULTY_KEYS, POKEABLE_KEYS (+17 more)
+Cohesion: 0.19
+Nodes (17): BEHAVIOUR_DEFAULTS, BEHAVIOUR_KEYS, buildBehaviour(), buildDifficulty(), buildDifficultySet(), DIFFICULTY_DEFAULTS, DIFFICULTY_KEYS, difficultyFromQuery() (+9 more)
 
 ### Community 4 - "sim/duel-sim.js"
 Cohesion: 0.11
-Nodes (35): applyConnect(), armorAbsorbs(), CONNECT, connectResult(), CUE, cue(), emit(), EVENT_NUM_FIELDS (+27 more)
+Nodes (31): applyConnect(), armorAbsorbs(), CONNECT, connectResult(), createDuel(), createEvent(), CUE, cue() (+23 more)
 
-### Community 5 - "ref_node_assert"
-Cohesion: 0.05
-Nodes (53): deepFreeze(), numberTable(), ../fighters/duel-sim.js, EVENT, buildMeter(), buildRules(), METER_KEYS, RULE_KEYS (+45 more)
+### Community 5 - "sim/index.js"
+Cohesion: 0.07
+Nodes (40): deepFreeze(), numberTable(), buildMeter(), buildRules(), METER_KEYS, RULE_KEYS, buildRoundRules(), ROUND_KEYS (+32 more)
 
 ### Community 6 - "bake.py"
-Cohesion: 0.13
-Nodes (12): bake(), bake_attribute(), bake_chain(), bake_curvature(), wire(), _bake_emit_with(), _bake_target_node(), _clear_bake_target() (+4 more)
+Cohesion: 0.11
+Nodes (14): bake(), bake_attribute(), bake_chain(), bake_curvature(), wire(), _bake_emit_with(), _bake_target_node(), _clear_bake_target() (+6 more)
 
 ### Community 7 - "cpu-controller.js"
-Cohesion: 0.12
-Nodes (18): ACTIONS, AI_ROLE, CAN_SIDESTEP, clearSnapshot(), CROUCH_KEYS, NO_PERSONALITIES, PLAN, PLANS (+10 more)
+Cohesion: 0.07
+Nodes (33): ActionMix, actionOf(), ACTIONS, AI_ROLE, bestPokeReach(), bodyRadiusOf(), CAN_SIDESTEP, clearSnapshot() (+25 more)
 
 ### Community 8 - "package.json"
 Cohesion: 0.06
@@ -173,29 +171,29 @@ Nodes (22): fmt(), glbSkinViolations(), JOINT_NAME, ADR-0001, ADR-0003, near(), 
 Cohesion: 0.24
 Nodes (4): chamferRect(), ADR-0001, plate(), slab()
 
-### Community 17 - "Hitstop"
-Cohesion: 0.18
-Nodes (4): FixedStepLoop, SIM_HZ, SeededRng, make()
+### Community 17 - "intent.test.js"
+Cohesion: 0.08
+Nodes (10): duel(), KIT, OFFENSIVE, PASSIVE, passive(), RULESET, SET, sharp() (+2 more)
 
 ### Community 18 - "hazards.js"
-Cohesion: 0.13
-Nodes (24): buildHazards(), buildOne(), camel(), CYCLE_KEYS, EFFECT_RULES, emitHazard(), fighterInZone(), ge0() (+16 more)
+Cohesion: 0.08
+Nodes (37): buildHazards(), buildOne(), camel(), CYCLE_KEYS, EFFECT_RULES, emitHazard(), fighterInZone(), ge0() (+29 more)
 
 ### Community 19 - "ref_node_assert"
-Cohesion: 0.20
-Nodes (8): createCylinder(), cylindersOverlap(), BUFFER, createCombatant(), createFighter(), MOVE_INPUTS, cyl(), createCombatant()
+Cohesion: 0.24
+Nodes (6): createCylinder(), cylindersOverlap(), BUFFER, createCombatant(), cyl(), createCombatant()
 
 ### Community 20 - "hardsurface.py"
 Cohesion: 0.20
 Nodes (10): brushed(), depth(), _displace_along_normals(), edge_wear(), hammered(), depth(), feature(), _value_noise() (+2 more)
 
 ### Community 21 - "smoke_plate.py"
-Cohesion: 0.13
-Nodes (12): chamfer_outline(), densify(), remesh(), row(), snap_to_surface(), activate(), apply_transform(), build() (+4 more)
-
-### Community 22 - "hazards.test.js"
 Cohesion: 0.11
-Nodes (20): createDuel(), createEvent(), resetDuel(), setDuelHazards(), setHazardsEnabled(), resetCombatant(), createHazardRuntime(), HAZARD_PHASE (+12 more)
+Nodes (11): chamfer_outline(), densify(), mirror_half(), quilt(), row(), snap_to_surface(), render_turntable(), _high() (+3 more)
+
+### Community 22 - "sim/state-machine.js"
+Cohesion: 0.14
+Nodes (16): ACTIONABLE, beginMove(), bufferedMoveId(), canAfford(), canTransition(), chainAttack(), chainMoveId(), decideFighter() (+8 more)
 
 ### Community 23 - "build.py"
 Cohesion: 0.13
@@ -206,12 +204,12 @@ Cohesion: 0.16
 Nodes (14): CAMERA_FEEL, clampPush(), createCameraDirector(), focus(), focusLevel(), impact(), impulse(), release() (+6 more)
 
 ### Community 25 - "armature.py"
-Cohesion: 0.15
-Nodes (11): bind_blend(), bind_rigid(), _ensure_modifier(), fighter_entry(), fix_weights(), _group(), joint_head(), joint_matrix() (+3 more)
+Cohesion: 0.14
+Nodes (11): bind_blend(), bind_rigid(), _ensure_modifier(), fighter_entry(), find_armature(), fix_weights(), _group(), joint_matrix() (+3 more)
 
 ### Community 26 - "smoke_cube.py"
-Cohesion: 0.14
-Nodes (11): save_png(), set_pixels(), mirror_half(), apply_modifiers(), delete(), build(), _cube(), _fill_base_color() (+3 more)
+Cohesion: 0.12
+Nodes (13): save_png(), mirror_copy(), apply_modifiers(), delete(), duplicate(), rng(), triangle_count(), build() (+5 more)
 
 ### Community 27 - "compress.mjs"
 Cohesion: 0.19
@@ -222,20 +220,20 @@ Cohesion: 0.11
 Nodes (25): absPath(), ENCODER_PACKAGES, ENGINE_BLENDER_DIR, GLTF_TRANSFORM_VERSION, loadConfig(), LOGICAL_PREFIX, ADR-0004, pinnedBpyVersion() (+17 more)
 
 ### Community 30 - "smoke_rig.py"
-Cohesion: 0.22
-Nodes (7): join(), _armour(), _ball(), build(), _flat_material(), _limb(), _mannequin()
+Cohesion: 0.17
+Nodes (9): join(), joint_head(), apply_transform(), _armour(), _ball(), build(), _flat_material(), _limb() (+1 more)
 
-### Community 31 - "MatchFlow"
-Cohesion: 0.12
-Nodes (13): ROUND_KEYS, isKoReason(), MATCH_EVENT, MATCH_STATE, MatchFlow, ROUND_REASON, roundWinner(), ROUND_RULES (+5 more)
+### Community 31 - "state-machine.test.js"
+Cohesion: 0.24
+Nodes (13): PHASE, STATE, FIGHTER_RULES, MOVES, dist(), DT, duelAt(), run() (+5 more)
 
 ### Community 33 - "scene-hooks.test.js"
 Cohesion: 0.20
 Nodes (9): FAKE_LOOK, fakeContainer(), fakeFighters(), fakeFighterView(), fakeRenderer(), fakeStage(), installFakeWindow(), build() (+1 more)
 
 ### Community 34 - "hazard-perception.test.js"
-Cohesion: 0.13
-Nodes (7): HAZARD_EVENT, fight(), PASSIVE, PHASE, RULESET, TEL, VENT
+Cohesion: 0.10
+Nodes (6): PASSIVE, PHASE, RULESET, TEL, VENT, pressBackHeavy()
 
 ### Community 35 - "bpy"
 Cohesion: 0.18
@@ -243,7 +241,7 @@ Nodes (5): export_glb(), _sort_faces(), _triangulate_all(), _gltf_output_group()
 
 ### Community 36 - "hardsurface.py"
 Cohesion: 0.10
-Nodes (17): assign_material_id(), _attr(), bezier_profile(), ensure_masks(), _faces_front(), fasteners(), mark_seam(), _mat_id() (+9 more)
+Nodes (16): assign_material_id(), _attr(), bezier_profile(), ensure_masks(), _faces_front(), fasteners(), mark_seam(), _mat_id() (+8 more)
 
 ### Community 37 - "three"
 Cohesion: 0.24
@@ -254,8 +252,8 @@ Cohesion: 0.26
 Nodes (8): fixture(), imagelessGlb(), addLiteSet(), escapeRe(), heroAssetFiles(), heroAssetsPlugin(), MIME, ADR-0004
 
 ### Community 39 - "createScene"
-Cohesion: 0.14
-Nodes (21): configureShadowCaster(), createDefaultLightRig(), ADR-0001, setShadowFlag(), SHADOW_DEFAULTS, SHADOW_TYPES, disposeHeroEnvironment(), createRenderer() (+13 more)
+Cohesion: 0.18
+Nodes (14): setShadowFlag(), disposeHeroEnvironment(), createRenderer(), createScene(), dispose(), onEvent(), pose(), prewarm() (+6 more)
 
 ### Community 40 - "run.mjs"
 Cohesion: 0.15
@@ -266,8 +264,8 @@ Cohesion: 0.24
 Nodes (9): createAcousticSpace(), createHarmonicLift(), createSend(), ADR-0005, lcg(), makeImpulseResponse(), makeTanhCurve(), ADR-0005 (+1 more)
 
 ### Community 42 - "_set_axes"
-Cohesion: 0.22
-Nodes (5): build_armature(), _contract(), contract_manifest(), _heat_tails(), _set_axes()
+Cohesion: 0.17
+Nodes (7): build_armature(), _contract(), contract_manifest(), _heat_tails(), _set_axes(), remesh(), activate()
 
 ### Community 43 - "render-bank.mjs"
 Cohesion: 0.24
@@ -289,25 +287,25 @@ Nodes (9): compose(), decode_ids(), _grid(), _linear_to_srgb(), preset(), _smoot
 Cohesion: 0.27
 Nodes (6): createHaptics(), impactBackend(), ADR-0005, vibrateBackend(), ADR-0005, fakeNavigator()
 
-### Community 48 - ".sample"
+### Community 48 - "scene.js"
 Cohesion: 0.22
-Nodes (7): bestPokeReach(), bodyRadiusOf(), CpuPilot, keyReach(), moveReach(), pressMove(), moveTotal()
+Nodes (8): ADR-0001, configureShadowCaster(), createDefaultLightRig(), ADR-0001, SHADOW_DEFAULTS, SHADOW_TYPES, ADR-0001, ADR-0004
 
 ### Community 49 - "boundary.test.js"
 Cohesion: 0.22
 Nodes (6): ALLOWED_BARE, GAME_LEXICON, ADR-0004, ROOT, SRC, walk()
 
-### Community 50 - "scene.py"
-Cohesion: 0.20
-Nodes (4): mirror_copy(), duplicate(), rng(), triangle_count()
+### Community 50 - "frame-data.js"
+Cohesion: 0.26
+Nodes (6): ../fighters/duel-sim.js, EVENT, frameAdvantage(), FrameDataTracker, isStun(), OUTCOME
 
 ### Community 51 - "bind_world_three"
 Cohesion: 0.33
 Nodes (3): bind_world_three(), rest_offsets(), three_euler_matrix()
 
-### Community 52 - "environment.js"
-Cohesion: 0.40
-Nodes (5): accentPanel(), bakeStageEnvironment(), ADR-0001, ADR-0003, ENV_PANELS
+### Community 52 - "personalities.js"
+Cohesion: 0.36
+Nodes (9): applyPersonality(), buildMatchups(), buildPersonalities(), buildPersonality(), FROM_JSON, keyTable(), LOCKED_KEYS, snake() (+1 more)
 
 ### Community 54 - "computeFraming"
 Cohesion: 0.60
@@ -318,24 +316,24 @@ Cohesion: 0.83
 Nodes (3): abs_path(), setup.sh script, verify()
 
 ## Knowledge Gaps
-- **59 isolated node(s):** `ADR-0005`, `ADR-0005`, `ADR-0001`, `ADR-0001`, `ADR-0001` (+54 more)
-  These have ≤1 connection - possible missing edges. (Counts symbols only; 411 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **6 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **60 isolated node(s):** `ADR-0001`, `ADR-0001`, `ADR-0003`, `ADR-0001`, `ADR-0003` (+55 more)
+  These have ≤1 connection - possible missing edges. (Counts symbols only; 435 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **4 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `three` connect `hero-asset.test.js` to `scene-hooks.test.js`, `three`, `createScene`, `package.json`, `rig-contract.test.js`, `geo.js`, `environment.js`?**
-  _High betweenness centrality (0.058) - this node is a cross-community bridge._
-- **Are the 10 inferred relationships involving `createScene()` (e.g. with `dispose()` and `finalKo()`) actually correct?**
-  _`createScene()` has 10 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `ADR-0005`, `ADR-0005`, `ADR-0001` to the rest of the system?**
-  _59 weakly-connected nodes found - possible missing edges._
-- **Should `quality.test.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.13043478260869565 - nodes in this community are weakly interconnected._
-- **Why does `FakeAudioContext` connect `FakeAudioContext` to `FakeParam`, `acoustic-space.test.js`, `sample-bank.test.js`, `haptics.test.js`?**
-  _High betweenness centrality (0.026) - this node is a cross-community bridge._
+- **Why does `three` connect `hero-asset.test.js` to `scene-hooks.test.js`, `three`, `package.json`, `rig-contract.test.js`, `geo.js`, `scene.js`?**
+  _High betweenness centrality (0.064) - this node is a cross-community bridge._
+- **What connects `ADR-0001`, `ADR-0001`, `ADR-0003` to the rest of the system?**
+  _60 weakly-connected nodes found - possible missing edges._
 - **Should `hero-asset.test.js` be split into smaller, more focused modules?**
-  _Cohesion score 0.05570745044429255 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.051490514905149054 - nodes in this community are weakly interconnected._
+- **Why does `STATE` connect `state-machine.test.js` to `hazard-perception.test.js`, `sim/duel-sim.js`, `cpu-controller.js`, `poses.js`, `frame-data.js`, `hazards.js`, `sim/state-machine.js`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
 - **Should `ref_node_assert` be split into smaller, more focused modules?**
-  _Cohesion score 0.0782312925170068 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.057342657342657345 - nodes in this community are weakly interconnected._
+- **Why does `FakeAudioContext` connect `FakeAudioContext` to `FakeParam`, `acoustic-space.test.js`, `sample-bank.test.js`, `haptics.test.js`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **Should `sim/duel-sim.js` be split into smaller, more focused modules?**
+  _Cohesion score 0.11092436974789915 - nodes in this community are weakly interconnected._

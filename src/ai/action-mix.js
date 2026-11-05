@@ -5,7 +5,8 @@ import { PLAN, REASON } from './cpu-controller.js';
 
 /** Action categories, in report order. */
 export const ACTIONS = Object.freeze([
-  'wait', 'approach', 'backOff', 'guard', 'sidestep', 'poke', 'heavy', 'throw', 'special', 'punish', 'overwind',
+  'wait', 'approach', 'backOff', 'guard', 'sidestep', 'jump', 'poke', 'heavy', 'string', 'throw', 'special',
+  'punish', 'counter', 'antiAir', 'overwind',
 ]);
 
 /**
@@ -18,12 +19,17 @@ export function actionOf(reason, key) {
   switch (reason) {
     case PLAN.WAIT: return 'wait';
     case PLAN.APPROACH: return 'approach';
-    case PLAN.BACK_OFF: return 'backOff';
-    case PLAN.GUARD: case REASON.BLOCK: return 'guard';
-    case PLAN.SIDESTEP: case REASON.EVADE: return 'sidestep';
+    case PLAN.BACK_OFF: case REASON.RETREAT: return 'backOff';
+    case PLAN.GUARD: case REASON.BLOCK: case REASON.RESPECT: return 'guard';
+    case PLAN.SIDESTEP: return 'sidestep';
+    case REASON.EVADE: return key === 'jump' ? 'jump' : 'sidestep';
+    case PLAN.JUMP: return 'jump';
     case PLAN.POKE: return key === 'heavy' ? 'heavy' : 'poke';
+    case REASON.STRING: return 'string';
     case PLAN.THROW: return 'throw';
     case PLAN.SPECIAL: return 'special';
+    case REASON.COUNTER: return 'counter';
+    case REASON.ANTI_AIR: return 'antiAir';
     case REASON.PUNISH: return key === null ? null : key === 'overwind' ? 'overwind' : 'punish';
     default: return null;
   }

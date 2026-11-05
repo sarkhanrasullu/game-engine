@@ -13,8 +13,8 @@ import {
  * (decision tempo, mistakes, spacing calibration).
  */
 export const LOCKED_KEYS = Object.freeze([
-  'reactionFrames', 'decisionFrames', 'mistakeRate', 'hazardEvadeChance', 'planJitterFrames', 'reachMargin',
-  'threatMargin', 'ringEdgeMargin',
+  'reactionFrames', 'decisionFrames', 'mistakeRate', 'hazardEvadeChance', 'matchupSkill', 'planJitterFrames',
+  'reachMargin', 'threatMargin', 'ringEdgeMargin',
 ]);
 
 /** Keys a personality may scale or set: every numeric AI key that is not locked (derived). */
@@ -78,20 +78,23 @@ export function buildPersonality(id, src, label = `ai personality ${id}`) {
  * Layer personality `p` on a difficulty level and a behaviour table: each key is multiplied by
  * `scale`, then replaced by `set`; level probabilities are clamped to 0..1; both results are
  * re-validated (buildDifficulty / buildBehaviour throw on anything out of range). `p` null returns
- * the inputs unchanged.
+ * the inputs unchanged. `weight` (0..1, default 1) blends the profile toward "no change": a scale s
+ * becomes 1 + (s - 1) * weight, a set value moves that fraction of the way (the level's matchupSkill
+ * uses it: an Easy CPU knows the matchup less).
  * @param {ReturnType<typeof buildPersonality> | null} p
  * @param {Readonly<Record<string, number>>} difficulty
  * @param {ReturnType<typeof buildBehaviour>} behaviour
+ * @param {number} [weight] 0..1 share of the profile applied
  * @returns {{difficulty: Readonly<Record<string, number>>, behaviour: ReturnType<typeof buildBehaviour>}}
  * @example const { difficulty, behaviour } = applyPersonality(table.rushdown, ai.levels.normal, ai.behaviour);
  */
-export function applyPersonality(p, difficulty, behaviour) {
-  if (p === null) return { difficulty, behaviour };
+export function applyPersonality(p, difficulty, behaviour, weight = 1) {
+  if (p === null || weight <= 0) return { difficulty, behaviour };
   const tune = (table, keys) => {
     const out = { ...table };
     for (const k of keys) {
-      if (Object.hasOwn(p.scale, k)) out[k] *= p.scale[k];
-      if (Object.hasOwn(p.set, k)) out[k] = p.set[k];
+      if (Object.hasOwn(p.scale, k)) out[k] *= 1 + (p.scale[k] - 1) * weight;
+      if (Object.hasOwn(p.set, k)) out[k] += (p.set[k] - out[k]) * weight;
       if (UNIT_KEYS.includes(k)) out[k] = Math.min(1, Math.max(0, out[k]));
     }
     return out;
@@ -122,4 +125,42 @@ export function buildPersonalities(json, difficulties) {
     for (const n of difficulties.names) applyPersonality(table[id], difficulties.levels[n], difficulties.behaviour);
   }
   return table;
+}
+
+/**
+ * Validate a matchup file (`{ matchups: {<selfKitId>: {<oppKitId>: entry}} }`, AI-DEPTH): a per-pairing
+ * play plan in the personality entry shape (`summary`, `scale`, `set`; same keys, same locks), layered
+ * by the pilot on top of its level and personality once it sees which kits are in the ring
+ * (public: the character select). Kit ids are opaque to the engine (lowercase ids). Every entry must
+ * produce a valid table on every level with every personality (and none), so a scale that only
+ * overflows in one combination fails here, at the data boundary.
+ * @example
+ *   const matchups = buildMatchups(matchupJson, ai, personalities);
+ *   new CpuPilot({ ..., matchups }); // applies matchups[self.spec.id][opp.spec.id] when kits are equipped
+ * @param {any} json parsed matchup data
+ * @param {{names: readonly string[], levels: Readonly<Record<string, Readonly<Record<string, number>>>>,
+ *   behaviour: ReturnType<typeof buildBehaviour>}} difficulties a buildDifficultySet result
+ * @param {Readonly<Record<string, ReturnType<typeof buildPersonality>>>} [personalities] a buildPersonalities result
+ * @returns {Readonly<Record<string, Readonly<Record<string, ReturnType<typeof buildPersonality>>>>>}
+ */
+export function buildMatchups(json, difficulties, personalities = {}) {
+  const table = {};
+  const styles = [null, ...Object.values(personalities)];
+  for (const [selfId, row] of Object.entries(json.matchups ?? {})) {
+    if (!ID_PATTERN.test(selfId) || row === null || typeof row !== 'object') throw new Error(`ai matchup ${selfId}: bad entry`);
+    const built = {};
+    for (const [oppId, src] of Object.entries(row)) {
+      if (!ID_PATTERN.test(oppId)) throw new Error(`ai matchup ${selfId}: bad opponent id ${oppId}`);
+      const m = buildPersonality(`${selfId}_vs_${oppId}`, src, `ai matchup ${selfId} vs ${oppId}`);
+      for (const n of difficulties.names) {
+        for (const p of styles) {
+          const t = applyPersonality(p, difficulties.levels[n], difficulties.behaviour);
+          applyPersonality(m, t.difficulty, t.behaviour);
+        }
+      }
+      built[oppId] = m;
+    }
+    table[selfId] = Object.freeze(built);
+  }
+  return Object.freeze(table);
 }

@@ -2,6 +2,29 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
+## 0.5.0 (2026-11-05)
+
+The CPU pilot learns footsies. Behaviour changes for every consumer that uses `CpuPilot`, which is why
+this is a minor bump; the API is additive and old difficulty/personality files stay valid.
+
+- `./ai` CpuPilot: kit preferred range (`spec.ai.rangeBias`; behaviour keys `rangeBias`, `rangeBand`,
+  `tipPatience`, `jumpWeight`), tip pokes thrown on a step-in instead of blind heavy spam, Light
+  strings on hit confirm (from the move's `cancel` data), a frame-advantage read after contact
+  (`frameAdvantage`: hold guard at minus frames, press at plus — tick throw on a blocker, jab, or
+  close in), armoured counters derived from `armor` windows, retreat and jump defences, the
+  `antiAir` move role, crouch-heavy and back-special whiff punishes, and meter discipline
+  (`spendable`: a costed special is not spent within one cost of a full meter). Fairness unchanged:
+  input snapshot only, reaction delay, public state.
+- `./ai` matchups: `buildMatchups(json, difficulties, personalities)` and `CpuPilot({ matchups })`
+  apply a per-pairing plan at the kit re-tune, weighted by the level's `matchupSkill`;
+  `applyPersonality(p, d, b, weight)`.
+- `./ai` difficulty: eight optional level keys with derived defaults — `stringConfirmChance`,
+  `pressureChance`, `disadvantageRespect`, `antiAirChance`, `counterChance`, `retreatChance`,
+  `jumpChance`, `matchupSkill` (locked for personalities). `ActionMix` gains `jump`, `string`,
+  `counter`, `antiAir`; new `REASON`s and `PLAN.JUMP`.
+- `./sim` moves: `aiRole` accepts `antiAir`; `cancel`, `armor` and `travel` are read as intent.
+- Tests: `test/ai/intent.test.js` (19). Suite 278 -> 297.
+
 ## 0.4.0 (2026-11-05)
 
 Stage hazards, meter-costed moves and the audio kernel the consumer's third fighter needed. Additive:

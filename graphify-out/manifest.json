@@ -6,27 +6,27 @@
     "semantic_hash": "731f0d9828e12a4e727825f1889aa39a"
   },
   "package.json": {
-    "mtime": 1793839562.0392952,
-    "seen": 1793839702.943771,
-    "ast_hash": "be2d06e189073f242ad2c2e5d2e6e817",
+    "mtime": 1793843115.8933802,
+    "seen": 1793843137.569889,
+    "ast_hash": "caae673f827aa922de84eef12cd57cb4",
     "semantic_hash": ""
   },
   "src/ai/action-mix.js": {
-    "mtime": 1793822963.5080862,
-    "seen": 1793823860.810974,
-    "ast_hash": "a578465322df979d7c13f24c21a9ef74",
-    "semantic_hash": "a578465322df979d7c13f24c21a9ef74"
+    "mtime": 1793840608.3866944,
+    "seen": 1793842866.190727,
+    "ast_hash": "273e177b5fd265400f6cdf2eca61d452",
+    "semantic_hash": ""
   },
   "src/ai/cpu-controller.js": {
-    "mtime": 1793836216.96226,
-    "seen": 1793839702.943773,
-    "ast_hash": "79168dbcb7eab0bae5012a34ee042d70",
+    "mtime": 1793842764.9797924,
+    "seen": 1793842866.190728,
+    "ast_hash": "a81227c2cad4b045e93605daff4184a1",
     "semantic_hash": ""
   },
   "src/ai/difficulty.js": {
-    "mtime": 1793836134.0597394,
-    "seen": 1793839702.943774,
-    "ast_hash": "108270c4770db38b0919eff43739322b",
+    "mtime": 1793842764.9801157,
+    "seen": 1793842866.190729,
+    "ast_hash": "e3e7c7d8571cd619e2ae018f68aaba5f",
     "semantic_hash": ""
   },
   "src/ai/index.js": {
@@ -42,9 +42,9 @@
     "semantic_hash": ""
   },
   "src/ai/personalities.js": {
-    "mtime": 1793836136.599214,
-    "seen": 1793839702.943776,
-    "ast_hash": "92a26d765726ab1578422c5a8bed9bfb",
+    "mtime": 1793841868.7578855,
+    "seen": 1793842866.190731,
+    "ast_hash": "657de54ee8e3e62563bb08418a21e558",
     "semantic_hash": ""
   },
   "src/audio/haptics.js": {
@@ -246,9 +246,9 @@
     "semantic_hash": "e6e29d9ae90d08d36ff5ec6d2cd73955"
   },
   "src/sim/moves.js": {
-    "mtime": 1793835852.6347656,
-    "seen": 1793839702.943816,
-    "ast_hash": "6b8fcce09262b30be5ac341d992025ee",
+    "mtime": 1793840526.4936628,
+    "seen": 1793842866.19077,
+    "ast_hash": "3026b15f2007020cecc33b3071e3a81d",
     "semantic_hash": ""
   },
   "src/sim/poses.js": {
@@ -336,11 +336,10 @@
     "semantic_hash": "5df98bc7291f7193ea519d40f1faecbc"
   },
   "test/fixtures/ai_difficulty.json": {
-    "mtime": 1793822963.5158784,
-    "seen": 1793823860.811769,
-    "ast_hash": "14634db2cb2cb0cdfa930858e887b1b1",
-    "semantic_hash": "14634db2cb2cb0cdfa930858e887b1b1",
-    "ast_empty": true
+    "mtime": 1793842590.1173522,
+    "seen": 1793842866.19079,
+    "ast_hash": "8ab736d7c271a8a9736fb3e1ae658a46",
+    "semantic_hash": ""
   },
   "test/fixtures/ai_personalities.json": {
     "mtime": 1793822963.5161023,
@@ -663,9 +662,9 @@
     "semantic_hash": ""
   },
   "CHANGELOG.md": {
-    "mtime": 1793839539.8304555,
-    "seen": 1793839702.9438772,
-    "ast_hash": "11149302682e40b8329556288a92a443",
+    "mtime": 1793843100.9369395,
+    "seen": 1793843137.569985,
+    "ast_hash": "f5f8d4ac8f0a9da684fa65c643d56920",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
@@ -932,10 +931,16 @@
     "ast_hash": "153decfc76204fdc94ded73f95c3e890",
     "semantic_hash": ""
   },
+  "test/ai/intent.test.js": {
+    "mtime": 1793843012.9939044,
+    "seen": 1793843137.5699358,
+    "ast_hash": "9ca180c30ef2ca241a648417cf1663fa",
+    "semantic_hash": ""
+  },
   "package-lock.json": {
-    "mtime": 1793839562.0395353,
-    "seen": 1793839702.943882,
-    "ast_hash": "10d93c61241bbfe7d86a6098b60e3ecd",
+    "mtime": 1793843115.893589,
+    "seen": 1793843137.569988,
+    "ast_hash": "da2b56329f864c1ac7d2e71276ca9a9a",
     "semantic_hash": ""
   }
 }

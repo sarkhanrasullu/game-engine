@@ -2,43 +2,56 @@
 // the same input snapshot a human produces (src/input/input-snapshot.js createSnapshot shape).
 // It reads both fighters read-only through perception.js: its own state as it is now, the
 // opponent's as it was `reactionFrames` ticks ago. Pure: no DOM, no three.js, allocation-free
-// per tick. All numbers come from the injected difficulty level and behaviour table (difficulty.js
-// validates them; the game owns the data).
+// per tick (the one allocation is the re-tune when the kits in the ring change, once per match).
+// All numbers come from the injected difficulty level, behaviour table, personality and matchup
+// data (difficulty.js / personalities.js validate them; the game owns the data). Every move the
+// pilot reasons about is found through the fighter's own kit (moveInputs, frame data, `aiRole`,
+// `cancel`, `armor`, `travel`), never through a character or move name.
 //
 // Decision order each tick (first match wins):
 //   1. KO / stunned            -> neutral input
-//   1a. standing in a stage hazard zone it can see (telegraph older than reactionFrames, or active)
-//                              -> walk out by the nearest lane exit that stays on the ring (hazardEvadeChance,
-//                                 rolled once per telegraph; story-013). Neutral approach / back-off also
-//                                 refuse to walk into such a zone.
+//   1a. standing in a stage hazard zone it can see -> walk out (hazardEvadeChance; story-013)
 //   1b. first free tick after own blockstun, meter full -> Overwind reversal when the blocked attack
-//                                 (already perceived, extrapolated from public frame data) leaves an
-//                                 Overwind-sized window (superBlockPunishChance, or always at
-//                                 superComebackHp or less of own HP; story-011 Normal Overwind rule)
-//   2. incoming attack in range -> block (blockChance) or sidestep (sidestepChance), rolled once per attack
+//                                 leaves an Overwind-sized window (superBlockPunishChance / superComebackHp)
+//   1c. own Light string        -> the next hit of a `cancel` string once the opener connected, inside
+//                                 the cancel window (stringConfirmChance, rolled once per own attack)
+//   1d. first free tick after an own attack that connected -> frame-data read: blocked at minus frames
+//                                 -> hold guard for the disadvantage plus the reaction delay
+//                                 (disadvantageRespect; never mash into a punish); landed or plus on
+//                                 block -> press: throw a blocker, jab, or close in (pressureChance)
+//   2. incoming attack in range -> one roll per attack: an armoured move that absorbs it (counterChance),
+//                                 block (blockChance), sidestep (sidestepChance), walk back out of a tip
+//                                 poke (retreatChance); a slow throw -> jump over it (jumpChance)
+//   2b. opponent airborne       -> the kit's `antiAir` move when it reaches (antiAirChance, once per jump)
 //   3. own blockstun           -> keep guard held
-//   4. attack in recovery      -> punish with the best move that lands in time (whiffPunishChance, once per attack);
-//                                 with a full meter, Overwind first (superPunishChance, or always at
-//                                 superComebackHp or less of own HP), else the most damaging key
-//   5. neutral plan            -> utility-weighted wait / approach / back off / poke / guard / sidestep,
-//                                 throw a guarding opponent in range (throwChance); mistakeRate picks at random;
-//                                 then, with specialShare, a special whose `aiRole` fits the delayed view
-//                                 (story-009 §9.3). Overwind is never used raw in neutral.
+//   4. attack in recovery      -> punish with the best move that lands in time (whiffPunishChance, once per
+//                                 attack); with a full meter, Overwind first (superPunishChance, or always
+//                                 at superComebackHp or less of own HP), else the most damaging key
+//   5. neutral plan            -> utility-weighted wait / approach / back off / poke / guard / sidestep /
+//                                 jump around a preferred range (rangeBias: between close range and the
+//                                 longest poke), throw a guarding opponent in range (throwChance),
+//                                 mistakeRate picks at random; then, with specialShare, a special whose
+//                                 `aiRole` fits the delayed view (story-009 §9.3). Overwind is never raw.
+//
+// Pokes carry intent (#pickPoke): a low against a standing guard, a mid against a crouching
+// opponent, a Light (string opener) in close range, the Heavy from its tip with heavyPokeShare, and
+// outside Light range the heavy tip poke competes with walking in.
 //
 // Range gate (design/quick-specs/fighter-identity-balance.md §2): every reach is measured against the
 // real target's kit body radius (rules.hurtRadius only for an unequipped greybox fighter). The
 // CPU's poke range is the longest of behaviour.pokeKeys, so it is derived from each kit's data and
 // never branches on which character it drives. The opponent's kit is public (character select).
 //
-// Personalities (story-011, src/ai/personalities.js) only rescale these numbers before the pilot is
-// built; the fairness rules (reaction delay, input snapshot only, public state) are unchanged.
+// Personalities (story-011) and matchups (AI-DEPTH, personalities.js buildMatchups) only rescale these
+// numbers; the fairness rules (reaction delay, input snapshot only, public state) are unchanged.
 import { STATE, PHASE, moveTotal, overwindReady, canAfford } from '../sim/state-machine.js';
 import { SeededRng } from '../core/rng.js';
 import { DelayedView, createObservation, observe, createHazardObservation, observeHazards } from './perception.js';
 import { applyPersonality } from './personalities.js';
+import { buildBehaviour } from './difficulty.js';
 
-/** No personalities: the default table of a pilot built without one. */
-const NO_PERSONALITIES = Object.freeze({});
+/** No personalities / matchups: the default tables of a pilot built without them. */
+const NO_TABLE = Object.freeze({});
 
 /** Neutral plans. */
 export const PLAN = Object.freeze({
@@ -50,15 +63,16 @@ export const PLAN = Object.freeze({
   SIDESTEP: 'sidestep',
   THROW: 'throw',
   SPECIAL: 'special',
+  JUMP: 'jump',
 });
 /** Plans the utility roll and mistakeRate pick from (SPECIAL only comes from the aiRole roll). */
 const PLANS = Object.freeze([
-  PLAN.WAIT, PLAN.APPROACH, PLAN.BACK_OFF, PLAN.POKE, PLAN.GUARD, PLAN.SIDESTEP, PLAN.THROW,
+  PLAN.WAIT, PLAN.APPROACH, PLAN.BACK_OFF, PLAN.POKE, PLAN.GUARD, PLAN.SIDESTEP, PLAN.THROW, PLAN.JUMP,
 ]);
 
-/** CPU roles a special move may declare (moves.js AI_ROLES; story-009 §4). */
+/** CPU roles a move may declare (moves.js AI_ROLES; story-009 §4, AI-DEPTH antiAir). */
 export const AI_ROLE = Object.freeze({
-  GAP_CLOSE: 'gapClose', LOW_POKE: 'lowPoke', ANTI_STEP: 'antiStep', RETREAT_POKE: 'retreatPoke',
+  GAP_CLOSE: 'gapClose', LOW_POKE: 'lowPoke', ANTI_STEP: 'antiStep', RETREAT_POKE: 'retreatPoke', ANTI_AIR: 'antiAir',
 });
 
 /** Move-input keys the CPU may use as neutral specials (picked by the move's aiRole). */
@@ -66,7 +80,8 @@ const SPECIAL_KEYS = Object.freeze(['specialForward', 'specialBack']);
 
 /** Why the CPU produced this tick's input (debug readout; non-neutral reasons). */
 export const REASON = Object.freeze({
-  KO: 'ko', STUNNED: 'stunned', BLOCK: 'block', EVADE: 'evade', BLOCKSTUN: 'blockstun', PUNISH: 'punish', HAZARD: 'hazard',
+  KO: 'ko', STUNNED: 'stunned', BLOCK: 'block', EVADE: 'evade', RETREAT: 'retreat', BLOCKSTUN: 'blockstun',
+  PUNISH: 'punish', HAZARD: 'hazard', STRING: 'string', RESPECT: 'respect', COUNTER: 'counter', ANTI_AIR: 'antiAir',
 });
 
 /** Hazard slots a pilot preallocates (sim.hazards beyond this are invisible to it). */
@@ -75,15 +90,18 @@ const MAX_HAZARDS = 8;
 const DEFENCE_NONE = 0;
 const DEFENCE_BLOCK = 1;
 const DEFENCE_EVADE = 2;
+const DEFENCE_RETREAT = 3;
+const DEFENCE_COUNTER = 4;
+const DEFENCE_JUMP = 5;
 
-/** States where a sidestep tap is accepted (locomotion). */
+/** States where a sidestep tap, a jump or a fresh press is accepted (locomotion). */
 const CAN_SIDESTEP = Object.freeze({ idle: true, walk: true, crouch: true, sidestep: true });
 
 /**
  * Horizontal centre distance at which move `m` can still connect: hitbox reach plus the target's
  * hurtbox radius (see moves.js hitbox schema and collision.js), plus forward travel (story-009 §4:
  * `forward + radius + bodyRadius + max(travel.distance, 0)`).
- * @param {import('../fighters/moves.js').MoveData} m
+ * @param {import('../sim/moves.js').MoveData} m
  * @param {number} hurtRadius
  */
 export function moveReach(m, hurtRadius) {
@@ -121,7 +139,10 @@ function pressMove(out, key) {
 }
 
 /** Punish candidates in preference order when damage ties (story-009 §9.2). */
-const PUNISH_KEYS = Object.freeze(['overwind', 'heavy', 'specialForward', 'throw', 'light']);
+const PUNISH_KEYS = Object.freeze(['overwind', 'heavy', 'specialForward', 'specialBack', 'crouchHeavy', 'throw', 'light']);
+
+/** Keys whose move may carry armour the CPU can answer a strike with (found by the move's `armor`). */
+const COUNTER_KEYS = Object.freeze(['specialBack', 'specialForward', 'heavy', 'crouchHeavy']);
 
 /** Move-input keys performed from a crouch (the stick is held down a tick before the button). */
 const CROUCH_KEYS = Object.freeze({ crouchLight: true, crouchHeavy: true });
@@ -136,12 +157,29 @@ export function bodyRadiusOf(f, rules) {
   return hb !== undefined && hb !== null ? hb.bodyRadius : rules.hurtRadius;
 }
 
+/** Move of `attacker`'s move-input `key`, or undefined when the kit lacks it. */
+function keyMove(attacker, key) {
+  const id = attacker.moveInputs[key];
+  return id === undefined ? undefined : attacker.moves[id];
+}
+
+/**
+ * Meter discipline: `f` may spend on move `m` now. A move without a meterCost always; a costed move
+ * only when affordable (state-machine.js canAfford) and not within one cost of a full meter, which is
+ * saved for Overwind (the one exception is a full meter itself, which Overwind spends elsewhere).
+ * @example spendable(f, f.moves.specialBack) // false at meter 85 with meterCost 20 and meterMax 100
+ */
+export function spendable(f, m) {
+  if (m.meterCost === undefined || m.meterCost === 0) return true;
+  return canAfford(f, m) && f.meter + m.meterCost < f.meterMax;
+}
+
 /**
  * Reach of `attacker`'s move-input `key` against a target of body radius `targetR`
  * (-Infinity when the kit lacks the move).
  */
 function keyReach(attacker, key, targetR) {
-  const m = attacker.moves[attacker.moveInputs[key]];
+  const m = keyMove(attacker, key);
   return m === undefined ? -Infinity : moveReach(m, targetR);
 }
 
@@ -158,6 +196,17 @@ export function bestPokeReach(attacker, pokeKeys, targetR) {
     if (r > best) best = r;
   }
   return best;
+}
+
+/**
+ * Frame advantage of move `m` after contact, from public frame data: the defender's stun minus the
+ * attacker's remaining active and recovery ticks (first-active-frame contact).
+ * @example frameAdvantage(kit.moves.light, true) // e.g. -3: the blocker acts 3 ticks before the attacker
+ * @param {import('../sim/moves.js').MoveData} m
+ * @param {boolean} blocked blockstun (true) or hitstun (false)
+ */
+export function frameAdvantage(m, blocked) {
+  return (blocked ? m.blockstun : m.hitstun) - (m.active - 1) - m.recovery;
 }
 
 /**
@@ -179,20 +228,35 @@ export class CpuPilot {
    *   personalityId -> personality (buildPersonalities); default none
    * @param {string|null} [opts.personalityId] a key of `personalities` layered on `difficulty` and
    *   `behaviour` (story-011); null = none. Unknown ids throw.
-   * @param {((frame:number, reason:string, pokeKey:string|null) => void) | null} [opts.onDecision] debug hook,
+   * @param {ReturnType<typeof import('./personalities.js').buildMatchups>} [opts.matchups] selfKitId ->
+   *   oppKitId -> plan (buildMatchups), layered on top once the pilot sees which kits (`spec.id`) are in
+   *   the ring; default none
+   * @param {((frame:number, reason:string, key:string|null) => void) | null} [opts.onDecision] debug hook,
    *   called on every fresh neutral plan pick and whenever the reason (or its key) changes
    */
   constructor({
-    difficulty, behaviour, seed = 1, rules, personalities = NO_PERSONALITIES, personalityId = null, onDecision = null,
+    difficulty, behaviour, seed = 1, rules, personalities = NO_TABLE, personalityId = null, matchups = NO_TABLE,
+    onDecision = null,
   }) {
     if (personalityId !== null && !Object.hasOwn(personalities, personalityId)) {
       throw new Error(`CpuPilot: unknown personalityId ${personalityId}`);
     }
     /** Personality layered on the level (null = none); read by the arcade ladder and debug UI. */
     this.personalityId = personalityId;
-    const tuned = applyPersonality(personalityId === null ? null : personalities[personalityId], difficulty, behaviour);
+    this.personality = personalityId === null ? null : personalities[personalityId];
+    this.level = difficulty;
+    this.shared = behaviour;
+    const tuned = applyPersonality(this.personality, difficulty, behaviour);
+    /** Level and behaviour in force: level -> kit range preference -> personality -> matchup (re-tuned per kit pair). */
     this.difficulty = tuned.difficulty;
     this.behaviour = tuned.behaviour;
+    this.matchups = matchups;
+    /** Debug readout: id of the matchup plan in force (`<self>_vs_<opp>`), else null. */
+    this.matchupId = null;
+    this.selfSpec = NO_TABLE; // sentinel: re-tune on the first sample
+    this.oppSpec = NO_TABLE;
+    /** Move-input key of the kit's `antiAir` move, or null (found at re-tune). */
+    this.antiAirKey = null;
     this.rules = rules;
     this.rng = new SeededRng(seed);
     this.onDecision = onDecision;
@@ -225,20 +289,34 @@ export class CpuPilot {
     this.serial = 0;
     this.prevState = STATE.IDLE;
     this.prevStateFrame = 0;
+    this.prevGrounded = true;
+    this.jumpSerial = 0;
+    this.airSerial = -1;
+    this.airGo = false;
     this.defendSerial = -1;
     this.defence = DEFENCE_NONE;
     this.evadeSent = false;
+    this.counterKey = null;
     this.punishSerial = -1;
     this.punishGo = false;
     this.superGo = false;
     this.wasBlockstun = false;
+    this.wasAttack = false;
+    this.myPrevFrame = 0;
+    this.ownHit = false;
+    this.ownMove = null;
+    this.stringGo = false;
+    this.guardLeft = 0;
+    this.respectBack = false;
     this.fresh = false;
     this.specialKey = 'specialForward';
     this.plan = PLAN.WAIT;
     this.planLeft = 0;
     this.planTick = 0;
+    this.planDone = false;
     this.pokeKey = 'light';
     this.sideDir = 1;
+    this.lastDist = Infinity;
   }
 
   /**
@@ -250,22 +328,40 @@ export class CpuPilot {
    *   CPU may see, reactionFrames late); null = none
    */
   sample(out, self, opp, hazards = null) {
+    if ((self.spec ?? null) !== this.selfSpec || (opp.spec ?? null) !== this.oppSpec) this.#retune(self, opp);
+    const d = this.difficulty;
     const me = observe(this.me, self, this.frame);
     const them = this.view.push(opp);
-    this.hazardCount = hazards === null ? 0 : observeHazards(this.hazards, hazards, this.difficulty.reactionFrames);
-    // Own state is known instantly: the first free tick after own blockstun.
+    this.hazardCount = hazards === null ? 0 : observeHazards(this.hazards, hazards, d.reactionFrames);
+    // Own state is known instantly: the first free tick after own blockstun / own attack.
     const leftBlockstun = this.wasBlockstun && me.state !== STATE.BLOCKSTUN;
     this.wasBlockstun = me.state === STATE.BLOCKSTUN;
+    const attacking = me.state === STATE.ATTACK;
+    const leftAttack = this.wasAttack && !attacking;
+    if (attacking && (!this.wasAttack || me.stateFrame < this.myPrevFrame)) {
+      // A new own attack (or the next hit of a string): one string roll, only for a move that chains.
+      this.ownHit = false;
+      this.stringGo = me.move.cancel !== undefined && this.rng.chance(d.stringConfirmChance);
+    }
+    if (attacking && me.attackHasHit) {
+      this.ownHit = true;
+      this.ownMove = me.move;
+    }
+    this.wasAttack = attacking;
+    this.myPrevFrame = me.stateFrame;
     this.frame++;
     if (them.state === STATE.ATTACK
       && (this.prevState !== STATE.ATTACK || them.stateFrame < this.prevStateFrame)) this.serial++;
     this.prevState = them.state;
     this.prevStateFrame = them.stateFrame;
+    if (!them.grounded && this.prevGrounded) this.jumpSerial++;
+    this.prevGrounded = them.grounded;
     clearSnapshot(out);
 
     if (me.state === STATE.KO || them.state === STATE.KO) return this.#say(REASON.KO, out);
     if (me.state === STATE.HITSTUN || me.state === STATE.THROWN) {
       this.planLeft = 0;
+      this.guardLeft = 0;
       return this.#say(REASON.STUNNED, out);
     }
 
@@ -274,6 +370,9 @@ export class CpuPilot {
     const dx = them.x - me.x;
     const dz = them.z - me.z;
     const dist = Math.hypot(dx, dz);
+    // The gap is closing (someone stepped in since last tick): what a tip poke is for.
+    const closing = dist < this.lastDist - 1e-4;
+    this.lastDist = dist;
 
     // 1a. Step out of a stage hazard zone the CPU can see (story-013).
     if (this.hazardCount > 0 && this.#hazardEscape(out, me, them, self, myR)) return this.#say(REASON.HAZARD, out);
@@ -285,30 +384,52 @@ export class CpuPilot {
       return this.#say(REASON.PUNISH, out, 'overwind');
     }
 
+    // 1c. Light string on a hit confirm: the next hit of a `cancel` string inside its window.
+    if (attacking) {
+      const c = me.move.cancel;
+      if (c !== undefined && this.stringGo && (me.attackHasHit || !c.requiresContact)) {
+        const n = me.stateFrame + 1; // the frame the chained move would start on (state-machine.js chainMoveId)
+        if (n >= c.from && n <= c.to) {
+          out.light = true;
+          this.planLeft = 0;
+          return this.#say(REASON.STRING, out, c.into);
+        }
+      }
+    }
+
+    // 1d. First free tick after an own attack that connected: read the frame data.
+    if (leftAttack && this.ownHit) this.#afterContact(me, them, self, opp, dist, myR, theirR);
+    if (this.guardLeft > 0) {
+      this.guardLeft--;
+      // Minus frames: guard, or (respectBack, rolled with the window) step back out of the opponent's throw
+      // range, since a guard inside it is a throw for them. The guess between the two is the real one.
+      if (this.respectBack && CAN_SIDESTEP[me.state] === true) out.stick.x = -1;
+      else {
+        out.guard = true;
+        out.stick.y = them.state === STATE.ATTACK && them.move.level === 'low' ? -1 : 0;
+      }
+      return this.#say(REASON.RESPECT, out, this.respectBack ? 'back' : null);
+    }
+
     // 2. Reactive defence against an attack the CPU can already see.
-    if (them.state === STATE.ATTACK && !them.attackHasHit && them.move.level !== 'throw'
+    if (them.state === STATE.ATTACK && !them.attackHasHit
       && (them.phase === PHASE.STARTUP || them.phase === PHASE.ACTIVE)
       && dist <= moveReach(them.move, myR) + this.behaviour.threatMargin) {
-      if (this.defendSerial !== this.serial) {
-        this.defendSerial = this.serial;
-        this.evadeSent = false;
-        if (this.rng.chance(this.difficulty.blockChance)) this.defence = DEFENCE_BLOCK;
-        else if (this.rng.chance(this.difficulty.sidestepChance)) this.defence = DEFENCE_EVADE;
-        else this.defence = DEFENCE_NONE;
+      const r = this.#defend(out, me, them, self, dist, myR, theirR);
+      if (r !== null) return r;
+    }
+
+    // 2b. Anti-air: the kit's `antiAir` move against an airborne opponent in reach.
+    if (!them.grounded && this.antiAirKey !== null) {
+      if (this.airSerial !== this.jumpSerial) {
+        this.airSerial = this.jumpSerial;
+        this.airGo = this.rng.chance(d.antiAirChance);
       }
-      if (this.defence === DEFENCE_BLOCK) {
-        out.guard = true;
-        out.stick.y = them.move.level === 'low' ? -1 : 0;
+      if (this.airGo && CAN_SIDESTEP[me.state] === true
+        && dist <= keyReach(self, this.antiAirKey, theirR) - this.behaviour.reachMargin) {
+        this.#press(out, this.antiAirKey, me);
         this.planLeft = 0;
-        return this.#say(REASON.BLOCK, out);
-      }
-      if (this.defence === DEFENCE_EVADE) {
-        if (!this.evadeSent && CAN_SIDESTEP[me.state] === true) {
-          out.sidestep = this.rng.chance(0.5) ? 1 : -1;
-          this.evadeSent = true;
-        }
-        this.planLeft = 0;
-        return this.#say(REASON.EVADE, out);
+        return this.#say(REASON.ANTI_AIR, out, this.antiAirKey);
       }
     }
 
@@ -323,22 +444,23 @@ export class CpuPilot {
     if (them.state === STATE.ATTACK && them.phase === PHASE.RECOVERY) {
       if (this.punishSerial !== this.serial) {
         this.punishSerial = this.serial;
-        this.punishGo = this.rng.chance(this.difficulty.whiffPunishChance);
+        this.punishGo = this.rng.chance(d.whiffPunishChance);
         // Overwind is a punish only (never raw in neutral); rolled once per attack, and only with a
-        // full meter so the RNG stream is unchanged while the meter fills.
-        this.superGo = this.punishGo && overwindReady(self) && this.#wantsSuper(self);
+        // full meter so the RNG stream is unchanged while the meter fills. A full meter also makes the
+        // CPU look for the punish it would spend it on (the super roll stands in for the whiff roll).
+        this.superGo = overwindReady(self) && this.#wantsSuper(self);
+        if (this.superGo) this.punishGo = true;
       }
       // Ticks until the opponent can act, extrapolated from what the CPU saw reactionFrames ago.
-      const left = moveTotal(them.move) - them.stateFrame - this.difficulty.reactionFrames;
+      const left = moveTotal(them.move) - them.stateFrame - d.reactionFrames;
       if (this.punishGo && left > 0) {
-        const key = this.#pickPunish(self, dist, left, theirR);
+        const key = this.#pickPunish(self, dist, left, theirR, me.crouching);
         if (key !== null) {
-          pressMove(out, key);
-          this.punishGo = false;
+          if (this.#press(out, key, me)) this.punishGo = false;
           this.planLeft = 0;
           return this.#say(REASON.PUNISH, out, key);
         }
-        const closeR = this.#punishCloseReach(self, left, theirR);
+        const closeR = this.#punishCloseReach(self, left, theirR, me.crouching);
         if (closeR > 0 && dist > closeR) {
           out.stick.x = 1; // close the gap, then punish next tick
           this.planLeft = 0;
@@ -348,12 +470,165 @@ export class CpuPilot {
     }
 
     // 5. Neutral.
-    if (this.planLeft <= 0) this.#choosePlan(me, them, self, opp, dist, myR, theirR);
+    if (this.planLeft <= 0) this.#choosePlan(me, them, self, opp, dist, myR, theirR, closing);
     this.#runPlan(out, me, them, self, dist, theirR);
     this.planLeft--;
     this.planTick++;
     const key = this.plan === PLAN.POKE ? this.pokeKey : this.plan === PLAN.SPECIAL ? this.specialKey : null;
     return this.#say(this.plan, out, key);
+  }
+
+  /**
+   * The kits in the ring changed (first sample, or a kit swap): rebuild the tables in force. Order:
+   * the level and shared behaviour; the own kit's range preference (`spec.ai.rangeBias`, the kit's
+   * identity: a reach kit lives at its tip, a bruiser up close; validated by the game's kit loader);
+   * the personality (rescales it); the matchup plan for `self.spec.id` vs `opp.spec.id` (if the table
+   * has one), weighted by the level's matchupSkill. Also finds the kit's `antiAir` move. The one
+   * allocation of a match.
+   */
+  #retune(self, opp) {
+    this.selfSpec = self.spec ?? null;
+    this.oppSpec = opp.spec ?? null;
+    const bias = this.selfSpec?.ai?.rangeBias;
+    const shared = bias === undefined ? this.shared : buildBehaviour({ ...this.shared, rangeBias: bias }, 'kit ai');
+    const base = applyPersonality(this.personality, this.level, shared);
+    const row = this.selfSpec !== null && Object.hasOwn(this.matchups, this.selfSpec.id) ? this.matchups[this.selfSpec.id] : null;
+    const m = row !== null && this.oppSpec !== null && Object.hasOwn(row, this.oppSpec.id) ? row[this.oppSpec.id] : null;
+    const t = applyPersonality(m, base.difficulty, base.behaviour, base.difficulty.matchupSkill);
+    this.difficulty = t.difficulty;
+    this.behaviour = t.behaviour;
+    this.matchupId = m === null ? null : m.id;
+    this.antiAirKey = null;
+    for (const key in self.moveInputs) {
+      const mv = keyMove(self, key);
+      if (mv !== undefined && mv.aiRole === AI_ROLE.ANTI_AIR) this.antiAirKey = key;
+    }
+  }
+
+  /**
+   * Press move-input `key`: a crouching move first holds the stick down (the fighter must already be
+   * crouching on the press tick), everything else presses now. Returns true when the button went out.
+   */
+  #press(out, key, me) {
+    if (CROUCH_KEYS[key] === true && !me.crouching) {
+      out.stick.y = -1;
+      return false;
+    }
+    pressMove(out, key);
+    return true;
+  }
+
+  /**
+   * Frame-data read on the first free tick after an own attack connected. What the delayed view shows
+   * decides (a Light's short recovery ends before the view shows the result: nothing is assumed):
+   *   BLOCKSTUN seen, minus frames  -> hold guard for the disadvantage plus the reaction delay
+   *                                    (disadvantageRespect); the opponent is free before this CPU is
+   *   HITSTUN / THROWN seen, or plus on block -> press (pressureChance): throw a blocker in throw range,
+   *                                    jab in Light range, else close in
+   */
+  #afterContact(me, them, self, opp, dist, myR, theirR) {
+    const d = this.difficulty;
+    const b = this.behaviour;
+    const m = this.ownMove;
+    const blocked = them.state === STATE.BLOCKSTUN;
+    if (!blocked && them.state !== STATE.HITSTUN && them.state !== STATE.THROWN) return;
+    const adv = frameAdvantage(m, blocked);
+    if (blocked && adv < 0) {
+      if (this.rng.chance(d.disadvantageRespect)) {
+        this.guardLeft = d.reactionFrames - adv;
+        // Inside the opponent's (public) throw reach a guard is a throw for them: step back instead, retreatChance.
+        this.respectBack = dist <= keyReach(opp, 'throw', myR) + b.threatMargin && this.rng.chance(d.retreatChance);
+      }
+      return;
+    }
+    if (!this.rng.chance(d.pressureChance)) return;
+    let plan = PLAN.APPROACH;
+    if (blocked && dist <= keyReach(self, 'throw', theirR) - b.reachMargin) plan = PLAN.THROW;
+    else if (dist <= keyReach(self, 'light', theirR) - b.reachMargin) {
+      plan = PLAN.POKE;
+      this.pokeKey = this.#pickPoke(self, dist, theirR, them, this.rng.next() * (1 - b.heavyPokeShare) + b.heavyPokeShare);
+    }
+    this.#setPlan(plan, d.decisionFrames);
+  }
+
+  /**
+   * Defence against a visible incoming attack, one roll per attack (serial). A strike: an armoured
+   * own move that absorbs it (counterChance), block (blockChance), sidestep (sidestepChance), or, near
+   * its tip, walk back out of it (retreatChance). A throw: jump over it (jumpChance; the sim never
+   * throws an airborne fighter). Returns the filled snapshot, or null when the roll said "nothing".
+   */
+  #defend(out, me, them, self, dist, myR, theirR) {
+    const d = this.difficulty;
+    const rng = this.rng;
+    const isThrow = them.move.level === 'throw';
+    if (this.defendSerial !== this.serial) {
+      this.defendSerial = this.serial;
+      this.evadeSent = false;
+      this.counterKey = isThrow ? null : this.#pickCounter(self, them, dist, theirR);
+      if (isThrow) this.defence = rng.chance(d.jumpChance) ? DEFENCE_JUMP : DEFENCE_NONE;
+      else if (this.counterKey !== null && rng.chance(d.counterChance)) this.defence = DEFENCE_COUNTER;
+      else if (rng.chance(d.blockChance)) this.defence = DEFENCE_BLOCK;
+      else if (rng.chance(d.sidestepChance)) this.defence = DEFENCE_EVADE;
+      else if (dist >= moveReach(them.move, myR) - this.behaviour.threatMargin && rng.chance(d.retreatChance)) this.defence = DEFENCE_RETREAT;
+      else this.defence = DEFENCE_NONE;
+    }
+    const free = CAN_SIDESTEP[me.state] === true;
+    switch (this.defence) {
+      case DEFENCE_BLOCK:
+        out.guard = true;
+        out.stick.y = them.move.level === 'low' ? -1 : 0;
+        this.planLeft = 0;
+        return this.#say(REASON.BLOCK, out);
+      case DEFENCE_EVADE:
+        if (!this.evadeSent && free) {
+          out.sidestep = rng.chance(0.5) ? 1 : -1;
+          this.evadeSent = true;
+        }
+        this.planLeft = 0;
+        return this.#say(REASON.EVADE, out, 'sidestep');
+      case DEFENCE_JUMP:
+        if (!this.evadeSent && free && me.grounded) {
+          out.stick.y = 1;
+          this.evadeSent = true;
+        }
+        this.planLeft = 0;
+        return this.#say(REASON.EVADE, out, 'jump');
+      case DEFENCE_RETREAT:
+        if (free) out.stick.x = -1;
+        this.planLeft = 0;
+        return this.#say(REASON.RETREAT, out);
+      case DEFENCE_COUNTER:
+        if (free && this.#press(out, this.counterKey, me)) this.defence = DEFENCE_NONE;
+        this.planLeft = 0;
+        return this.#say(REASON.COUNTER, out, this.counterKey);
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Own move (COUNTER_KEYS) whose armour answers the incoming strike: affordable, in reach, its armour
+   * covers the strike's level and the tick the strike arrives (extrapolated from the delayed view and
+   * public frame data), and it recovers to hit before the opponent can act. Most damaging wins; null
+   * when none fits. The move's `armor` data is the only thing that makes it a counter.
+   */
+  #pickCounter(self, them, dist, targetR) {
+    const d = this.difficulty;
+    const arrive = them.move.startup + 1 - (them.stateFrame + d.reactionFrames);
+    const oppFree = moveTotal(them.move) - them.stateFrame - d.reactionFrames;
+    let best = null;
+    let bestDmg = -1;
+    for (const key of COUNTER_KEYS) {
+      const m = keyMove(self, key);
+      if (m === undefined || m.armor === undefined || !spendable(self, m) || m.damage <= bestDmg) continue;
+      const a = m.armor;
+      const lead = CROUCH_KEYS[key] === true ? 1 : 0;
+      if (arrive - lead < a.from || arrive - lead > a.to || !a.levels.includes(them.move.level)) continue;
+      if (m.startup + 1 + lead >= oppFree || dist > moveReach(m, targetR) - this.behaviour.reachMargin) continue;
+      best = key;
+      bestDmg = m.damage;
+    }
+    return best;
   }
 
   /**
@@ -379,7 +654,7 @@ export class CpuPilot {
     if (!comeback && d.superBlockPunishChance <= 0) return false;
     if (them.state !== STATE.ATTACK || them.move.level === 'throw') return false;
     if (them.stateFrame + d.reactionFrames < them.move.startup) return false;
-    const m = self.moves[self.moveInputs.overwind];
+    const m = keyMove(self, 'overwind');
     if (m === undefined) return false;
     const left = moveTotal(them.move) - them.stateFrame - d.reactionFrames;
     if (m.startup + 1 >= left || dist > moveReach(m, targetR) - this.behaviour.reachMargin) return false;
@@ -387,13 +662,14 @@ export class CpuPilot {
   }
 
   /**
-   * True when punish key `key` may be used now: Overwind only with a full meter and a won roll, and
-   * any move only when its meterCost (moves.js) is affordable.
+   * True when punish key `key` may be used now: Overwind only with a full meter and a won roll, any
+   * move only when its meterCost (moves.js) is spendable (meter discipline), and never a move that
+   * travels backward.
    */
   #punishAllowed(self, key) {
     if (key === 'overwind') return this.superGo && overwindReady(self);
-    const m = self.moves[self.moveInputs[key]];
-    return m === undefined || canAfford(self, m);
+    const m = keyMove(self, key);
+    return m === undefined || (spendable(self, m) && !(m.travel !== undefined && m.travel.distance < 0));
   }
 
   /**
@@ -462,15 +738,24 @@ export class CpuPilot {
   }
 
   /**
+   * Ticks a punish key needs before its first active tick: startup + 1, plus the crouch tick of a
+   * crouching move while the CPU is not crouching yet (so a pick at the edge of the window still fits
+   * on its second tick).
+   */
+  #lead(key, m, crouching) {
+    return m.startup + (CROUCH_KEYS[key] === true && !crouching ? 2 : 1);
+  }
+
+  /**
    * Distance to close before punishing: the longest reach (minus reachMargin) over the punish
    * moves that still start up in time (`startup + 1 < left`). <= 0 when none does.
    */
-  #punishCloseReach(self, left, targetR) {
+  #punishCloseReach(self, left, targetR, crouching) {
     let best = -Infinity;
     for (const key of PUNISH_KEYS) {
       if (!this.#punishAllowed(self, key)) continue;
-      const m = self.moves[self.moveInputs[key]];
-      if (m === undefined || m.startup + 1 >= left) continue;
+      const m = keyMove(self, key);
+      if (m === undefined || this.#lead(key, m, crouching) >= left) continue;
       const r = moveReach(m, targetR) - this.behaviour.reachMargin;
       if (r > best) best = r;
     }
@@ -478,18 +763,18 @@ export class CpuPilot {
   }
 
   /**
-   * Punish key (story-009 §9.2): over PUNISH_KEYS filtered by `startup + 1 < left` and reach
-   * (including travel), Overwind when it qualifies and was chosen for this attack, else the most
-   * damaging (ties keep PUNISH_KEYS order). null when nothing fits.
+   * Punish key (story-009 §9.2): over PUNISH_KEYS filtered by `startup + 1 < left` (one more tick for a
+   * crouching move the CPU still has to crouch for) and reach (including travel), Overwind when it qualifies and was chosen for this
+   * attack, else the most damaging (ties keep PUNISH_KEYS order). null when nothing fits.
    */
-  #pickPunish(self, dist, left, targetR) {
+  #pickPunish(self, dist, left, targetR, crouching) {
     const margin = this.behaviour.reachMargin;
     let best = null;
     let bestDmg = -1;
     for (const key of PUNISH_KEYS) {
       if (!this.#punishAllowed(self, key)) continue;
-      const m = self.moves[self.moveInputs[key]];
-      if (m === undefined || m.startup + 1 >= left || dist > moveReach(m, targetR) - margin) continue;
+      const m = keyMove(self, key);
+      if (m === undefined || this.#lead(key, m, crouching) >= left || dist > moveReach(m, targetR) - margin) continue;
       if (key === 'overwind') return key;
       if (m.damage > bestDmg) {
         best = key;
@@ -499,12 +784,25 @@ export class CpuPilot {
     return best;
   }
 
-  #choosePlan(me, them, self, opp, dist, myR, theirR) {
+  /** Start neutral plan `plan` for `frames` ticks (a new pick is logged even when it repeats the last plan). */
+  #setPlan(plan, frames) {
+    this.plan = plan;
+    this.fresh = true;
+    this.planTick = 0;
+    this.planDone = false;
+    this.planLeft = frames;
+  }
+
+  #choosePlan(me, them, self, opp, dist, myR, theirR, closing) {
     const d = this.difficulty;
     const b = this.behaviour;
     const rng = this.rng;
     const pokeR = bestPokeReach(self, b.pokeKeys, theirR) - b.reachMargin;
     const throwR = keyReach(self, 'throw', theirR) - b.reachMargin;
+    const lightR = keyReach(self, 'light', theirR) - b.reachMargin;
+    // Close range: Lights and throws reach. Preferred range sits rangeBias of the way to the longest poke.
+    const closeR = lightR > throwR ? lightR : throwR;
+    const pref = closeR + (pokeR > closeR ? (pokeR - closeR) * b.rangeBias : 0);
     // The opponent's kit is public knowledge (the character select shows it): its best poke.
     const oppR = bestPokeReach(opp, b.pokeKeys, myR) + b.threatMargin;
     const guarding = them.state === STATE.GUARD || them.state === STATE.BLOCKSTUN;
@@ -519,12 +817,17 @@ export class CpuPilot {
       const w = this.weights;
       const inOppRange = dist <= oppR;
       w[0] = b.waitWeight * (1 - agg); // WAIT
-      w[1] = dist > (guarding ? throwR : pokeR) ? agg : 0; // APPROACH
-      w[2] = inOppRange ? b.backOffWeight * (1 - agg) : 0; // BACK_OFF
-      w[3] = dist <= pokeR ? (guarding ? agg * 0.2 : agg) : 0; // POKE (pokes into guard are weak)
+      w[1] = dist > (guarding ? throwR : pref + b.rangeBand) ? agg : 0; // APPROACH (to throw range vs a guard)
+      w[2] = inOppRange || dist < pref - b.rangeBand ? b.backOffWeight * (1 - agg) : 0; // BACK_OFF
+      // POKE: into a guard only to open it (low / mid); beyond Light range the tip poke competes with walking
+      // in, the more so the closer the kit's preferred range is (rangeBias 1 = a tip fighter pokes from the
+      // tip), and a tip fighter pokes when someone steps in, waiting otherwise (tipPatience).
+      const tip = (b.heavyPokeShare + (1 - b.heavyPokeShare) * b.rangeBias) * (closing ? 1 : b.tipPatience);
+      w[3] = dist <= pokeR ? agg * (guarding ? 0.4 : 1) * (dist <= closeR ? 1 : tip) : 0;
       w[4] = inOppRange ? b.guardWeight * d.blockChance : 0; // GUARD (pre-emptive; scales with the level's block skill)
       w[5] = b.sidestepWeight * d.sidestepChance; // SIDESTEP
       w[6] = 0; // THROW only via the throwChance roll above
+      w[7] = b.jumpWeight; // JUMP
       let total = 0;
       for (let i = 0; i < w.length; i++) total += w[i];
       let r = rng.next() * total;
@@ -539,7 +842,7 @@ export class CpuPilot {
       // Neutral specials (§9.3), rolled after the poke roll and only on an offensive pick (APPROACH
       // or POKE), so specials scale with aggression; from the delayed view only, and only specials
       // in reach can be picked.
-      const n = plan === PLAN.APPROACH || plan === PLAN.POKE ? this.#fitSpecials(them, self, dist, pokeR, oppR, theirR) : 0;
+      const n = plan === PLAN.APPROACH || plan === PLAN.POKE ? this.#fitSpecials(me, them, self, dist, pokeR, oppR, theirR) : 0;
       if (n > 0 && rng.chance(d.specialShare)) {
         plan = PLAN.SPECIAL;
         this.specialKey = this.fits[n === 1 ? 0 : rng.int(n)];
@@ -547,41 +850,48 @@ export class CpuPilot {
     }
 
     if (plan === PLAN.POKE) {
-      this.pokeKey = this.#pickPoke(self, dist, theirR, them.crouching, rng.next());
+      this.pokeKey = this.#pickPoke(self, dist, theirR, them, rng.next());
     } else if (plan === PLAN.SIDESTEP) {
       this.sideDir = rng.chance(0.5) ? 1 : -1;
     }
-    this.plan = plan;
-    this.fresh = true; // a new pick is logged even when it repeats the last plan
-    this.planTick = 0;
-    this.planLeft = d.decisionFrames + rng.int(b.planJitterFrames);
+    this.#setPlan(plan, d.decisionFrames + rng.int(b.planJitterFrames));
   }
 
   /**
    * Fill `this.fits` with the special keys whose move's aiRole fits the (delayed) view this tick,
-   * whose meterCost (if any) the CPU can pay, and which reach `dist` (minus reachMargin); returns
-   * how many. Never branches on character.
-   *   gapClose     pokeR < dist <= its reach
-   *   lowPoke      in reach and the opponent stands guarding or is in the startup of an armoured move
+   * whose meterCost (if any) the CPU can pay and is willing to (spendable: not within one cost of a
+   * full meter, saved for Overwind), and which reach `dist` (minus reachMargin); returns how many.
+   * Never branches on character.
+   *   gapClose     pokeR < dist <= its reach, and the opponent is open: whiffing / recovering, or neither
+   *                attacking nor standing in guard (a charge into a guard is a punish for the guard)
+   *   lowPoke      in reach and the opponent stands guarding, is in the startup of an armoured move, or is
+   *                beyond this CPU's Light reach (a low tip poke; it breaks armour and standing guard)
    *   antiStep     in reach and the opponent is sidestepping
-   *   retreatPoke  in reach and dist <= oppR (inside the opponent's threat range)
+   *   retreatPoke  in reach and dist <= oppR (inside the opponent's threat range), or this CPU is cornered
+   *   antiAir      never in neutral (reactive, step 2b)
    */
-  #fitSpecials(them, self, dist, pokeR, oppR, targetR) {
+  #fitSpecials(me, them, self, dist, pokeR, oppR, targetR) {
     let n = 0;
+    const attacking = them.state === STATE.ATTACK;
     for (const key of SPECIAL_KEYS) {
-      const id = self.moveInputs[key];
-      const m = id === undefined ? undefined : self.moves[id];
-      if (m === undefined || m.aiRole === undefined || !canAfford(self, m)) continue;
+      const m = keyMove(self, key);
+      if (m === undefined || m.aiRole === undefined || !spendable(self, m)) continue;
       if (dist > moveReach(m, targetR) - this.behaviour.reachMargin) continue;
       let fits = false;
       switch (m.aiRole) {
-        case AI_ROLE.GAP_CLOSE: fits = dist > pokeR; break;
+        case AI_ROLE.GAP_CLOSE:
+          // Far, and the opponent is open: whiffing / recovering, or not attacking and not standing in guard.
+          fits = dist > pokeR && them.state !== STATE.GUARD && (!attacking || them.phase === PHASE.RECOVERY);
+          break;
         case AI_ROLE.LOW_POKE:
           fits = (them.state === STATE.GUARD && !them.crouching)
-            || (them.state === STATE.ATTACK && them.phase === PHASE.STARTUP && them.move.armor !== undefined);
+            || (attacking && them.phase === PHASE.STARTUP && them.move.armor !== undefined)
+            || dist > keyReach(self, 'light', targetR) - this.behaviour.reachMargin;
           break;
         case AI_ROLE.ANTI_STEP: fits = them.state === STATE.SIDESTEP; break;
-        case AI_ROLE.RETREAT_POKE: fits = dist <= oppR; break;
+        case AI_ROLE.RETREAT_POKE:
+          fits = dist <= oppR || Math.hypot(me.x, me.z) > self.movement.ringRadius - this.behaviour.ringEdgeMargin;
+          break;
         default: break;
       }
       if (fits) this.fits[n++] = key;
@@ -590,18 +900,21 @@ export class CpuPilot {
   }
 
   /**
-   * Poke key for a POKE plan from the poke keys that reach `dist` (spec §2.3), one roll `r`:
-   * heavy by heavyPokeShare, else crouchLight by lowPokeShare or against a crouching opponent,
-   * else light; when the preferred move does not reach, the reaching key with the longest reach.
-   * With nothing in reach (a mistakeRate pick) it is the longest-reaching poke key.
+   * Poke key for a POKE plan from the poke keys that reach `dist` (spec §2.3), one roll `r`, with
+   * intent: a mid (heavy) against a crouching opponent (highs miss, lows are crouch-blocked), a low
+   * (crouchLight) against a standing guard, else heavy by heavyPokeShare, crouchLight by lowPokeShare,
+   * else light (the string opener); when the preferred move does not reach, the reaching key with the
+   * longest reach. With nothing in reach (a mistakeRate pick) it is the longest-reaching poke key.
    */
-  #pickPoke(self, dist, targetR, oppCrouching, r) {
+  #pickPoke(self, dist, targetR, them, r) {
     const b = this.behaviour;
-    const keys = b.pokeKeys;
+    const guarding = them.state === STATE.GUARD || them.state === STATE.BLOCKSTUN;
+    if (them.crouching && this.#pokeReaches(self, 'heavy', dist, targetR)) return 'heavy';
+    const low = (guarding && !them.crouching) || (r >= b.heavyPokeShare && r < b.heavyPokeShare + b.lowPokeShare);
+    if (low && this.#pokeReaches(self, 'crouchLight', dist, targetR)) return 'crouchLight';
     if (r < b.heavyPokeShare && this.#pokeReaches(self, 'heavy', dist, targetR)) return 'heavy';
-    if ((r < b.heavyPokeShare + b.lowPokeShare || oppCrouching)
-      && this.#pokeReaches(self, 'crouchLight', dist, targetR)) return 'crouchLight';
     if (this.#pokeReaches(self, 'light', dist, targetR)) return 'light';
+    const keys = b.pokeKeys;
     let best = keys[0];
     let bestR = -Infinity;
     let bestIn = false;
@@ -624,19 +937,27 @@ export class CpuPilot {
   }
 
   #runPlan(out, me, them, self, dist, theirR) {
+    const b = this.behaviour;
     switch (this.plan) {
       case PLAN.APPROACH: {
         out.stick.x = 1;
         const guarding = them.state === STATE.GUARD || them.state === STATE.BLOCKSTUN;
-        const b = this.behaviour;
-        const goal = (guarding ? keyReach(self, 'throw', theirR) : bestPokeReach(self, b.pokeKeys, theirR)) - b.reachMargin;
+        const lightR = keyReach(self, 'light', theirR) - b.reachMargin;
+        const throwR = keyReach(self, 'throw', theirR) - b.reachMargin;
+        const closeR = lightR > throwR ? lightR : throwR;
+        let goal;
+        if (guarding) goal = throwR;
+        else {
+          const pokeR = bestPokeReach(self, b.pokeKeys, theirR) - b.reachMargin;
+          goal = closeR + (pokeR > closeR ? (pokeR - closeR) * b.rangeBias : 0);
+        }
         if (dist <= goal) this.planLeft = 1; // in range: re-decide next tick
         // A visible hazard zone on the way: hold here (the plan re-rolls when it runs out).
         if (this.hazardCount > 0 && this.#hazardAhead(me, them.x >= me.x ? 1 : -1, bodyRadiusOf(self, this.rules))) out.stick.x = 0;
         break;
       }
       case PLAN.BACK_OFF: {
-        const edge = self.movement.ringRadius - this.behaviour.ringEdgeMargin;
+        const edge = self.movement.ringRadius - b.ringEdgeMargin;
         if (this.hazardCount > 0 && this.#hazardAhead(me, them.x >= me.x ? -1 : 1, bodyRadiusOf(self, this.rules))) {
           break; // backing into a visible hazard zone: hold instead
         }
@@ -650,12 +971,9 @@ export class CpuPilot {
         }
         break;
       }
-      case PLAN.POKE: {
-        const crouching = CROUCH_KEYS[this.pokeKey] === true;
-        if (crouching) out.stick.y = -1; // crouch first; the crouching move comes out next tick
-        if (this.planTick === (crouching ? 1 : 0)) pressMove(out, this.pokeKey);
+      case PLAN.POKE:
+        if (!this.planDone) this.planDone = this.#press(out, this.pokeKey, me);
         break;
-      }
       case PLAN.GUARD:
         out.guard = true;
         break;
@@ -663,6 +981,12 @@ export class CpuPilot {
         if (this.planTick === 0) {
           if (CAN_SIDESTEP[me.state] === true) out.sidestep = this.sideDir;
           else this.planTick = -1; // not free yet: try again next tick
+        }
+        break;
+      case PLAN.JUMP:
+        if (!this.planDone && CAN_SIDESTEP[me.state] === true && me.grounded) {
+          out.stick.y = 1;
+          this.planDone = true;
         }
         break;
       case PLAN.THROW:

@@ -24,7 +24,9 @@
 // 1 <= from <= to <= startup + active) the attacker moves distance / (to - from + 1) per tick along
 // its locked attack direction (negative = backward); it stops at minSeparation and the ring edge
 // and the rest of the distance is dropped.
-// aiRole (optional, CPU-only): one of AI_ROLES.
+// aiRole (optional, CPU-only): one of AI_ROLES. The CPU also reads `cancel` (Light strings on a
+// hit confirm), `armor` (an armoured move answers a strike its armour covers) and `travel` (reach),
+// so no further intent data is needed: the kit's frame data is the intent.
 // meterCost (optional): integer >= 0 of Wind meter the move spends on its frame 1 (like Overwind
 // spends the full meter). A move with meterCost > the fighter's meter cannot start: a Heavy that
 // would resolve to such a special falls back to heavy (state-machine.js bufferedMoveId), any other
@@ -61,8 +63,11 @@ export const MOVE_INPUTS = Object.freeze({
   specialBack: 'specialBack',
 });
 
-/** CPU roles a move may declare (story-009 §4). */
-export const AI_ROLES = Object.freeze(['gapClose', 'antiStep', 'lowPoke', 'retreatPoke']);
+/**
+ * CPU roles a move may declare (story-009 §4; AI-DEPTH). The specials' roles pick them in neutral
+ * by situation; `antiAir` marks the normal the CPU answers a jump with (reactive, any move key).
+ */
+export const AI_ROLES = Object.freeze(['gapClose', 'antiStep', 'lowPoke', 'retreatPoke', 'antiAir']);
 
 /** Integer frame-data fields of a move (validated at load). */
 const MOVE_FIELDS = ['startup', 'active', 'recovery', 'damage', 'hitstun', 'blockstun', 'thrownFrames', 'hitstop', 'blockHitstop'];

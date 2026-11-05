@@ -5,18 +5,22 @@
     "reachMargin": 0.08,
     "threatMargin": 0.25,
     "ringEdgeMargin": 0.6,
-    "heavyPokeShare": 0.3,
+    "heavyPokeShare": 0.15,
     "lowPokeShare": 0.25,
     "waitWeight": 0.35,
-    "guardWeight": 0.4,
+    "guardWeight": 0.55,
     "backOffWeight": 0.45,
     "sidestepWeight": 0.6,
     "planJitterFrames": 6,
+    "rangeBias": 0.25,
+    "rangeBand": 0.15,
+    "jumpWeight": 0.02,
     "pokeKeys": [
       "light",
       "crouchLight",
       "heavy"
-    ]
+    ],
+    "tipPatience": 0.4
   },
   "levels": {
     "easy": {
@@ -26,12 +30,20 @@
       "sidestepChance": 0.1,
       "whiffPunishChance": 0.15,
       "throwChance": 0.15,
-      "aggression": 0.35,
+      "aggression": 0.42,
       "mistakeRate": 0.3,
       "specialShare": 0.05,
       "superPunishChance": 0.4,
       "superBlockPunishChance": 0.0,
-      "superComebackHp": 0.0
+      "superComebackHp": 0.0,
+      "stringConfirmChance": 0.35,
+      "pressureChance": 0.3,
+      "disadvantageRespect": 0.25,
+      "antiAirChance": 0.2,
+      "counterChance": 0.1,
+      "retreatChance": 0.05,
+      "jumpChance": 0.1,
+      "matchupSkill": 0.3
     },
     "normal": {
       "reactionFrames": 14,
@@ -45,7 +57,15 @@
       "specialShare": 0.1,
       "superPunishChance": 0.75,
       "superBlockPunishChance": 0.6,
-      "superComebackHp": 0.35
+      "superComebackHp": 0.35,
+      "stringConfirmChance": 0.75,
+      "pressureChance": 0.6,
+      "disadvantageRespect": 0.65,
+      "antiAirChance": 0.5,
+      "counterChance": 0.4,
+      "retreatChance": 0.15,
+      "jumpChance": 0.3,
+      "matchupSkill": 0.8
     },
     "hard": {
       "reactionFrames": 9,
@@ -59,7 +79,15 @@
       "specialShare": 0.15,
       "superPunishChance": 1.0,
       "superBlockPunishChance": 1.0,
-      "superComebackHp": 0.5
+      "superComebackHp": 0.5,
+      "stringConfirmChance": 0.95,
+      "pressureChance": 0.85,
+      "disadvantageRespect": 0.95,
+      "antiAirChance": 0.85,
+      "counterChance": 0.55,
+      "retreatChance": 0.3,
+      "jumpChance": 0.5,
+      "matchupSkill": 1.0
     }
   }
 }

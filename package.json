@@ -1,6 +1,6 @@
 {
   "name": "@sarkhanrasullu/game-engine",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Data-driven 3D fighting-game engine: fixed-step core, deterministic duel sim, fair CPU pilot, input layer, three.js render pipeline, audio and storage primitives. Raw ES modules, no build step.",
   "license": "MIT",
   "author": "sarkhanrasullu",

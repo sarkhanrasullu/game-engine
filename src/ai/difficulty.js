@@ -15,31 +15,63 @@ import { numberTable } from '../core/data.js';
  *   aggression         0..1 bias toward approaching and poking over waiting, guarding, backing off
  *   mistakeRate        chance a neutral decision ignores spacing and picks any plan at random
  *   specialShare       chance a neutral decision becomes a special when one fits by aiRole (story-009 §9.3)
- *   superPunishChance  chance a full-meter punish spends Overwind instead of the next punish key (§9.2)
+ *   superPunishChance  chance a full-meter punish spends Overwind instead of the next punish key (§9.2); with a
+ *                      full meter this roll also opens the punish itself (a player holding a super looks for it)
  *   superBlockPunishChance  chance, with a full meter, to spend Overwind on the first free tick after
  *                      own blockstun when the blocked attack (already perceived, extrapolated from public
  *                      frame data) leaves an Overwind-sized window (story-011 Normal Overwind rule)
  *   superComebackHp    own HP fraction at or below which a full-meter punish (whiff punish or blocked-attack
  *                      reversal) always spends Overwind (comeback rule; 0 = never). Overwind is never
  *                      thrown out raw in neutral.
- *   hazardEvadeChance  (optional in data; default 1 - mistakeRate) chance, rolled once per hazard
- *                      telegraph it can see (reactionFrames late), that the CPU steps out of / stays
- *                      out of a telegraphed stage hazard zone (story-013; hazards.js)
+ *   hazardEvadeChance  (optional; default 1 - mistakeRate) chance, rolled once per hazard telegraph it
+ *                      can see (reactionFrames late), that the CPU steps out of / stays out of a
+ *                      telegraphed stage hazard zone (story-013; hazards.js)
+ * AI-DEPTH keys (all optional; the default keeps a level file written before them valid):
+ *   stringConfirmChance  (default 1 - mistakeRate) chance, rolled once per own attack, to continue a
+ *                      Light string (move.cancel) once the opener connected (hit confirm)
+ *   pressureChance     (default aggression) chance to press the advantage on the first free tick after
+ *                      an own attack landed or was blocked at plus frames (throw a blocker, jab, close in)
+ *   disadvantageRespect  (default blockChance) chance to hold guard, instead of pressing, after an own
+ *                      attack was blocked at frame disadvantage (public frame data: blockstun vs recovery)
+ *   antiAirChance      (default blockChance) chance, rolled once per jump it sees, to answer an airborne
+ *                      opponent in reach with the kit's `antiAir` move
+ *   counterChance      (default 0) chance, rolled once per incoming strike, to answer it with an own move
+ *                      whose armour covers the strike's level and window, instead of blocking
+ *   retreatChance      (default 0) chance, after block and sidestep fail, to walk back out of a tip-range
+ *                      strike so it whiffs (then the whiff punish applies)
+ *   jumpChance         (default 0) chance to jump over a slow throw it sees coming (airborne = unthrowable)
+ *   matchupSkill       (default 1) 0..1 how much of the matchup plan (personalities.js buildMatchups) the level
+ *                      applies: 1 = the full plan, 0 = none (an Easy CPU knows the matchup less); locked
  */
 export const DIFFICULTY_KEYS = Object.freeze([
   'reactionFrames', 'decisionFrames', 'blockChance', 'sidestepChance', 'whiffPunishChance',
   'throwChance', 'aggression', 'mistakeRate', 'specialShare', 'superPunishChance', 'superBlockPunishChance',
-  'superComebackHp', 'hazardEvadeChance',
+  'superComebackHp', 'hazardEvadeChance', 'stringConfirmChance', 'pressureChance', 'disadvantageRespect',
+  'antiAirChance', 'counterChance', 'retreatChance', 'jumpChance', 'matchupSkill',
 ]);
 
+/** Default of each optional level key, from the required keys. */
+const DIFFICULTY_DEFAULTS = Object.freeze({
+  hazardEvadeChance: (t) => 1 - t.mistakeRate,
+  stringConfirmChance: (t) => 1 - t.mistakeRate,
+  pressureChance: (t) => t.aggression,
+  disadvantageRespect: (t) => t.blockChance,
+  antiAirChance: (t) => t.blockChance,
+  counterChance: () => 0,
+  retreatChance: () => 0,
+  jumpChance: () => 0,
+  matchupSkill: () => 1,
+});
+
 /** Difficulty keys a level file may omit (filled with a derived default by buildDifficulty). */
-export const OPTIONAL_DIFFICULTY_KEYS = Object.freeze(['hazardEvadeChance']);
+export const OPTIONAL_DIFFICULTY_KEYS = Object.freeze(Object.keys(DIFFICULTY_DEFAULTS));
 const REQUIRED_DIFFICULTY_KEYS = Object.freeze(DIFFICULTY_KEYS.filter((k) => !OPTIONAL_DIFFICULTY_KEYS.includes(k)));
 
 /** Keys that are probabilities and must lie in 0..1. */
 export const UNIT_KEYS = Object.freeze([
   'blockChance', 'sidestepChance', 'whiffPunishChance', 'throwChance', 'aggression', 'mistakeRate',
-  'specialShare', 'superPunishChance', 'superBlockPunishChance', 'superComebackHp', 'hazardEvadeChance',
+  'specialShare', 'superPunishChance', 'superBlockPunishChance', 'superComebackHp', ...OPTIONAL_DIFFICULTY_KEYS,
+  'rangeBias', 'tipPatience',
 ]);
 
 /**
@@ -50,37 +82,55 @@ export const UNIT_KEYS = Object.freeze([
  *   heavyPokeShare / lowPokeShare   share of pokes that are Heavy / crouching Light
  *   waitWeight, guardWeight, backOffWeight, sidestepWeight   neutral utility weights
  *   planJitterFrames  random extra ticks (0..n-1) added to a plan's length
+ *   rangeBias         (optional, default 1) 0..1 preferred neutral range between the kit's close range
+ *                     (the longer of Light and throw reach) and its longest poke; the CPU walks in
+ *                     above it and backs off below it (AI-DEPTH spacing; personalities rescale it)
+ *   rangeBand         (optional, default 0.15) units either side of the preferred range it is content in
+ *   jumpWeight        (optional, default 0) neutral utility weight of a jump
+ *   tipPatience       (optional, default 1) 0..1 share of the tip-poke weight kept while nobody is stepping in
+ *                     (1 = poke from the tip regardless; lower = wait at the tip for the step-in)
  *   pokeKeys          (string list, not a number) move-input keys the CPU may poke with in neutral;
  *                     its poke range is the longest of these against the opponent's body radius
  */
 export const BEHAVIOUR_KEYS = Object.freeze([
   'reachMargin', 'threatMargin', 'ringEdgeMargin', 'heavyPokeShare', 'lowPokeShare', 'waitWeight',
-  'guardWeight', 'backOffWeight', 'sidestepWeight', 'planJitterFrames',
+  'guardWeight', 'backOffWeight', 'sidestepWeight', 'planJitterFrames', 'rangeBias', 'rangeBand', 'jumpWeight',
+  'tipPatience',
 ]);
+
+/** Behaviour keys a file may omit, with their defaults. */
+export const BEHAVIOUR_DEFAULTS = Object.freeze({ rangeBias: 1, rangeBand: 0.15, jumpWeight: 0, tipPatience: 1 });
 
 /** Move-input keys allowed in behaviour.pokeKeys (neutral pokes; throws and Overwind are not pokes). */
 export const POKEABLE_KEYS = Object.freeze(['light', 'heavy', 'crouchLight', 'crouchHeavy']);
 
 /**
  * Validate one difficulty level. Throws on a missing/unknown key or an out-of-range value.
+ * Optional keys (OPTIONAL_DIFFICULTY_KEYS) are filled from the required ones.
  * @param {Record<string, unknown>} src
  * @param {string} [label]
  * @returns {Readonly<Record<string, number>>}
  */
 export function buildDifficulty(src, label = 'ai difficulty') {
   if (!src || typeof src !== 'object') throw new Error(`${label}: missing section`);
-  const { hazardEvadeChance, ...required } = src;
+  const required = {};
+  const optional = {};
+  for (const k of Object.keys(src)) (Object.hasOwn(DIFFICULTY_DEFAULTS, k) ? optional : required)[k] = src[k];
   const base = numberTable(required, REQUIRED_DIFFICULTY_KEYS, label);
-  if (hazardEvadeChance !== undefined && (typeof hazardEvadeChance !== 'number' || !Number.isFinite(hazardEvadeChance))) {
-    throw new Error(`${label}: hazardEvadeChance must be a finite number`);
+  /** @type {Record<string, number>} */
+  const t = {};
+  for (const k of DIFFICULTY_KEYS) {
+    if (!Object.hasOwn(DIFFICULTY_DEFAULTS, k)) t[k] = base[k];
+    else if (optional[k] === undefined) t[k] = DIFFICULTY_DEFAULTS[k](base);
+    else if (typeof optional[k] !== 'number' || !Number.isFinite(optional[k])) throw new Error(`${label}: ${k} must be a finite number`);
+    else t[k] = optional[k];
   }
-  const t = Object.freeze({ ...base, hazardEvadeChance: hazardEvadeChance ?? 1 - base.mistakeRate });
   for (const k of UNIT_KEYS) {
-    if (t[k] < 0 || t[k] > 1) throw new Error(`${label}: ${k} must be in 0..1`);
+    if (Object.hasOwn(t, k) && (t[k] < 0 || t[k] > 1)) throw new Error(`${label}: ${k} must be in 0..1`);
   }
   if (!Number.isInteger(t.reactionFrames) || t.reactionFrames < 0) throw new Error(`${label}: reactionFrames must be an integer >= 0`);
   if (!Number.isInteger(t.decisionFrames) || t.decisionFrames < 1) throw new Error(`${label}: decisionFrames must be an integer >= 1`);
-  return t;
+  return Object.freeze(t);
 }
 
 /**
@@ -96,10 +146,11 @@ export function buildBehaviour(src, label = 'ai behaviour') {
     if (!POKEABLE_KEYS.includes(k)) throw new Error(`${label}: pokeKeys has unknown key ${k}`);
   }
   if (new Set(pokeKeys).size !== pokeKeys.length) throw new Error(`${label}: pokeKeys has a duplicate`);
-  const t = numberTable(numbers, BEHAVIOUR_KEYS, label);
+  const t = numberTable({ ...BEHAVIOUR_DEFAULTS, ...numbers }, BEHAVIOUR_KEYS, label);
   for (const k of BEHAVIOUR_KEYS) {
     if (t[k] < 0) throw new Error(`${label}: ${k} must be >= 0`);
   }
+  if (t.rangeBias > 1) throw new Error(`${label}: rangeBias must be in 0..1`);
   if (t.heavyPokeShare + t.lowPokeShare > 1) throw new Error(`${label}: heavyPokeShare + lowPokeShare must be <= 1`);
   if (!Number.isInteger(t.planJitterFrames) || t.planJitterFrames < 1) throw new Error(`${label}: planJitterFrames must be an integer >= 1`);
   return Object.freeze({ ...t, pokeKeys: Object.freeze([...pokeKeys]) });
