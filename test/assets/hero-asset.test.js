@@ -162,7 +162,7 @@ function gatedFiles() {
     });
   });
   const release = async (u) => { while (!gates.has(u)) await new Promise((r) => setTimeout(r, 0)); gates.get(u)(); gates.delete(u); };
-  return { files, order, fetchBytes, release };
+  return { files, order, gates, fetchBytes, release };
 }
 const twoHeroCfg = { ...HERO_CFG, fighters: { ...HERO_CFG.fighters, 'fighter-b': { asset: 'hero-b' } } };
 
@@ -283,4 +283,201 @@ test('inline source: artifact table entries decode to bytes and map to blob: URL
   assert.match(url, /^blob:/);
   assert.equal(src.urlModifier('other.js'), 'other.js');
   await assert.rejects(src.fetchBytes('heroes/missing.glb'), /not found/);
+});
+
+// ---- 0.5.2 BOOT-NET: shared download lane, preemption, lite as a function, transcoder blobs
+
+/** Gated files whose hero fetches honour the abort signal (the lane's preemption). */
+function abortableFiles() {
+  const g = gatedFiles();
+  const fetchBytes = (u, onBytes, o = {}) => new Promise((resolve, reject) => {
+    g.order.push(u);
+    if (u.endsWith('manifest.json')) return resolve(g.files[u]);
+    if (o.signal) o.signal.addEventListener('abort', () => { g.gates.delete(u); reject(Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' })); });
+    g.gates.set(u, () => {
+      if (onBytes) { onBytes(10, 100); onBytes(100, 100); }
+      resolve(g.files[u]);
+    });
+  });
+  return { ...g, fetchBytes };
+}
+const tick = () => new Promise((r) => setTimeout(r, 0));
+
+test('store: a load() of another hero PREEMPTS the hero in flight below preemptBelow and it re-queues right behind (same promise)', async () => {
+  // Arrange: a in flight (0 % arrived), b queued; preempt below a third
+  const { order, fetchBytes, release } = abortableFiles();
+  const store = createHeroAssetStore({ cfg: twoHeroCfg, fighters: ['fighter-a', 'fighter-b'], fetchBytes, log: () => {}, preemptBelow: 0.34, createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }) });
+  const all = store.preload({ tier: 'high', renderer: null });
+  const pa = store.whenLoaded('fighter-a');
+  await tick();
+  assert.equal(store.lane.current(), 'hero:fighter-a');
+  // Act: the player swipes to b
+  const pb = store.load('fighter-b');
+  await tick();
+  // Assert: a was aborted (a row says so), b downloads, a follows, both land
+  assert.equal(store.lane.current(), 'hero:fighter-b');
+  assert.equal(store.stats.filter((s) => s.fighter === 'fighter-a' && s.preempted).length, 1);
+  await release('heroes/hero-b.glb');
+  assert.ok(await pb);
+  await release('heroes/hero-a.glb');
+  await all;
+  assert.equal(await pa, true);
+  assert.ok(store.get('fighter-a') && store.get('fighter-b'));
+  assert.deepEqual(order.filter((u) => u.endsWith('.glb')), ['heroes/hero-a.glb', 'heroes/hero-b.glb', 'heroes/hero-a.glb']);
+  assert.equal(store.status('fighter-a'), 'ok');
+});
+
+test('store: without preemptBelow a load() never aborts the hero in flight (0.5.1 behaviour)', async () => {
+  // Arrange
+  const { order, fetchBytes, release } = abortableFiles();
+  const store = createHeroAssetStore({ cfg: twoHeroCfg, fighters: ['fighter-a', 'fighter-b'], fetchBytes, log: () => {}, createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }) });
+  store.preload({ tier: 'high', renderer: null });
+  await tick();
+  // Act
+  const pb = store.load('fighter-b');
+  await tick();
+  // Assert
+  assert.equal(store.lane.current(), 'hero:fighter-a');
+  await release('heroes/hero-a.glb');
+  await release('heroes/hero-b.glb');
+  await pb;
+  assert.deepEqual(order.filter((u) => u.endsWith('.glb')), ['heroes/hero-a.glb', 'heroes/hero-b.glb']);
+  assert.equal(store.stats.some((s) => s.preempted), false);
+});
+
+test('store: lite as a FUNCTION is read when each fetch starts, so a rule decided mid-queue applies to the heroes not yet started', async () => {
+  // Arrange: both heroes have a lite file; the rule flips to lite after a has started
+  const manifest = heroManifestJson();
+  manifest.assets.push({ ...manifest.assets[0], id: 'hero-b', file: 'hero-b.glb', bytes: 64 });
+  for (const a of manifest.assets) a.lite = { file: a.file.replace('.glb', '.lite.glb') };
+  const files = { 'heroes/manifest.json': new TextEncoder().encode(JSON.stringify(manifest)).buffer };
+  for (const f of ['hero-a.glb', 'hero-a.lite.glb', 'hero-b.glb', 'hero-b.lite.glb']) files[`heroes/${f}`] = heroGlb({ lods: [0] });
+  const order = [];
+  const gates = new Map();
+  const fetchBytes = (u) => new Promise((resolve) => {
+    order.push(u);
+    if (u.endsWith('manifest.json')) return resolve(files[u]);
+    gates.set(u, () => resolve(files[u]));
+  });
+  const release = async (u) => { while (!gates.has(u)) await tick(); gates.get(u)(); gates.delete(u); await tick(); };
+  let slow = false;
+  const store = createHeroAssetStore({ cfg: twoHeroCfg, fighters: ['fighter-a', 'fighter-b'], fetchBytes, log: () => {}, createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }) });
+  // Act
+  const all = store.preload({ tier: 'high', renderer: null, lite: () => slow });
+  await tick();
+  slow = true; // the throughput rule fires while a (full) is in flight
+  await release('heroes/hero-a.glb');
+  await release('heroes/hero-b.lite.glb');
+  await all;
+  // Assert
+  assert.deepEqual(order.filter((u) => u.endsWith('.glb')), ['heroes/hero-a.glb', 'heroes/hero-b.lite.glb']);
+  assert.ok(store.get('fighter-a') && store.get('fighter-b'));
+});
+
+test('store: a shared lane orders hero downloads with other stores\' jobs by priority; the transcoder warm feeds the LoadingManager', async () => {
+  // Arrange: one lane, a stage-like job at 20 queued BEFORE the hero (10)
+  const { createDownloadLane } = await import('../../src/assets/download-lane.js');
+  const lane = createDownloadLane();
+  const ran = [];
+  lane.add({ id: 'bank:x', priority: 30, run: async () => { ran.push('bank:x'); } });
+  lane.add({ id: 'stage', priority: 20, run: async () => { ran.push('stage'); } });
+  const files = { 'heroes/manifest.json': new TextEncoder().encode(JSON.stringify(heroManifestJson())).buffer, 'heroes/hero-a.glb': heroGlb({ lods: [0] }) };
+  let modifier = null;
+  const transcoder = { urlModifier: (u) => (u === 'basis/basis_transcoder.wasm' ? 'blob:wasm' : u) };
+  const store = createHeroAssetStore({
+    cfg: HERO_CFG, fighters: ['fighter-a'], lane, transcoder, log: () => {},
+    fetchBytes: async (u) => { ran.push(u); return files[u]; },
+    createLoader: async ({ manager }) => { modifier = (u) => manager.resolveURL(u); return { loader: nodeGltfLoader(), dispose() {} }; },
+  });
+  // Act
+  await store.preload({ tier: 'high', renderer: null });
+  await lane.idle();
+  // Assert: the hero went first although queued last; the manager maps the transcoder file to the blob
+  assert.deepEqual(ran, ['heroes/manifest.json', 'heroes/hero-a.glb', 'stage', 'bank:x']);
+  assert.equal(store.lane, lane);
+  assert.equal(modifier('basis/basis_transcoder.wasm'), 'blob:wasm');
+  assert.equal(modifier('heroes/hero-a.glb'), 'heroes/hero-a.glb');
+  assert.ok(store.get('fighter-a'));
+});
+
+test('store: a decode waits for the transcoder warm, whose two files went out before the hero bytes', async () => {
+  // Arrange: a real warm over a gated wasm; the hero bytes are instant
+  const { createTranscoderWarm } = await import('../../src/assets/transcoder-warm.js');
+  const seen = [];
+  let releaseWasm;
+  const wasmGate = new Promise((r) => { releaseWasm = r; });
+  const netFetch = async (url) => {
+    seen.push(url);
+    if (url.endsWith('.wasm')) await wasmGate;
+    return { ok: true, status: 200, blob: async () => ({ size: 1 }) };
+  };
+  const transcoder = createTranscoderWarm({ transcoderPath: 'basis/', fetch: netFetch, createObjectURL: () => 'blob:x', revokeObjectURL: () => {}, loadStack: null });
+  const files = { 'heroes/manifest.json': new TextEncoder().encode(JSON.stringify(heroManifestJson())).buffer, 'heroes/hero-a.glb': heroGlb({ lods: [0] }) };
+  let decoded = 0;
+  const store = createHeroAssetStore({
+    cfg: HERO_CFG, fighters: ['fighter-a'], transcoder, log: () => {},
+    fetchBytes: async (u) => { seen.push(u); return files[u]; },
+    createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }),
+    loadAsset: async () => { decoded++; return { warnings: [], dispose() {} }; },
+  });
+  // Act
+  transcoder.start();
+  const p = store.load('fighter-a', { tier: 'high', renderer: null });
+  await tick(); await tick();
+  // Assert: both files asked before the hero; the bytes landed but the decode holds for the warm
+  assert.deepEqual(seen.slice(0, 2), ['basis/basis_transcoder.js', 'basis/basis_transcoder.wasm']);
+  assert.ok(seen.includes('heroes/hero-a.glb'));
+  assert.equal(decoded, 0, 'no decode before the transcoder has settled (the loader would fetch it a second time)');
+  releaseWasm();
+  assert.ok(await p);
+  assert.equal(decoded, 1);
+});
+
+test('store: a load() during a DECODE cannot preempt it: a decode that then fails is a failed hero, not a download to repeat', async () => {
+  // Arrange: a's bytes land and its decode is gated; that decode will fail. A preempt here would abort the signal,
+  // and the failure would read as a preemption: a whole hero downloaded again, for a file that cannot decode.
+  const { order, fetchBytes, release } = abortableFiles();
+  let failDecode;
+  const gate = new Promise((r) => { failDecode = r; });
+  let decodes = 0;
+  const store = createHeroAssetStore({
+    cfg: twoHeroCfg, fighters: ['fighter-a', 'fighter-b'], fetchBytes, log: () => {}, preemptBelow: 0.99,
+    createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }),
+    loadAsset: async () => {
+      if (++decodes === 1) { await gate; throw new Error('corrupt glb'); }
+      return { warnings: [], dispose() {} };
+    },
+  });
+  const all = store.preload({ tier: 'high', renderer: null });
+  await release('heroes/hero-a.glb');
+  await tick();
+  // Act: swipe to b while a decodes, then the decode fails
+  store.load('fighter-b');
+  await tick();
+  assert.equal(store.lane.current(), 'hero:fighter-a', 'the decode keeps the lane');
+  failDecode();
+  await release('heroes/hero-b.glb');
+  await all;
+  // Assert: one attempt at a, failed; b loaded
+  assert.deepEqual(order.filter((u) => u.endsWith('.glb')), ['heroes/hero-a.glb', 'heroes/hero-b.glb']);
+  assert.equal(store.stats.some((s) => s.preempted), false);
+  assert.equal(store.status('fighter-a'), 'failed');
+  assert.equal(store.status('fighter-b'), 'ok');
+});
+
+test('store: load(id, o, { preempt: false }) moves a hero up without aborting the one in flight (fight start: the rival behind the player)', async () => {
+  // Arrange
+  const { order, fetchBytes, release } = abortableFiles();
+  const store = createHeroAssetStore({ cfg: twoHeroCfg, fighters: ['fighter-a', 'fighter-b'], fetchBytes, log: () => {}, preemptBelow: 0.99, createLoader: async () => ({ loader: nodeGltfLoader(), dispose() {} }) });
+  const all = store.preload({ tier: 'high', renderer: null });
+  await tick();
+  // Act
+  store.load('fighter-b', undefined, { preempt: false });
+  await tick();
+  // Assert
+  assert.equal(store.lane.current(), 'hero:fighter-a');
+  await release('heroes/hero-a.glb');
+  await release('heroes/hero-b.glb');
+  await all;
+  assert.deepEqual(order.filter((u) => u.endsWith('.glb')), ['heroes/hero-a.glb', 'heroes/hero-b.glb']);
 });

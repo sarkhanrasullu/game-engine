@@ -2,7 +2,7 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
-## 0.6.0 (unreleased)
+## 0.6.0 (2026-11-05)
 
 Fight systems (consumer design/quick-specs/fight-systems-gap-2026-11-05.md). Every new `rules` / `meter` / `movement` key is optional
 with the spec's value as its default (`RULE_DEFAULTS`, `METER_DEFAULTS`, `MOVEMENT_DEFAULTS`), so a game shipping no new data still
@@ -34,6 +34,21 @@ validates. Every new difficulty key is optional and defaults to 0 (the level doe
   throw special once a throw of its was teched this round), `ventChance` (one roll per attack that has it in blockstun, only against a move it could not
   punish, keeping the meter within one cost of full when it wants the Overwind; `REASON.VENT`). Observation adds `hitCounter` and `pushLeft`; `stunLeft` stays hidden.
   Tests: `test/ai/fight-systems.test.js`.
+## 0.5.2 (2026-11-05)
+
+One download lane for everything a game streams (consumer BOOT-NET: slow links). Additive, with one behaviour change, noted last.
+
+- `./assets` `createDownloadLane()`: a priority scheduler, one file at a time, lower number sooner. `add`, `bump`,
+  `promote(id, { preempt })`, `yieldToFront`, `current`, `idle`, `snapshot`. A promote may abort a barely-started download.
+- `./assets` `createTranscoderWarm({ transcoderPath })`: fetches the basis transcoder early and serves it from memory
+  through a `urlModifier`, so the first decode does not wait on it. `start`, `urlModifier`, `dispose`, `TRANSCODER_FILES`.
+- `./assets` hero and stage stores: options `lane`, `priority`, `preemptBelow`, `transcoder`; `lite` may be a function, read
+  as each file starts. New `HERO_LANE_PRIORITY`, `STAGE_LANE_PRIORITY`, `load(id, o, { preempt })`, `store.lane`, stage
+  `promote()`. `fetchBytesWithProgress` takes a third argument, `{ signal }`.
+- `./audio` `createSampleBank`: options `lane`, `priority`; new `prefetch({ groups, priority })` downloads without decoding;
+  `BANK_LANE_PRIORITY`.
+- `tools/audio/render-bank.mjs`: `regroupManifest()` changes clip groups without re-encoding audio.
+- **Behaviour change:** a variant that failed to fetch or decode is not retried until `unload()`; `load()` used to retry it.
 
 ## 0.5.1 (2026-11-05)
 
