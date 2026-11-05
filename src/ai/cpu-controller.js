@@ -7,6 +7,10 @@
 //
 // Decision order each tick (first match wins):
 //   1. KO / stunned            -> neutral input
+//   1a. standing in a stage hazard zone it can see (telegraph older than reactionFrames, or active)
+//                              -> walk out by the nearest lane exit that stays on the ring (hazardEvadeChance,
+//                                 rolled once per telegraph; story-013). Neutral approach / back-off also
+//                                 refuse to walk into such a zone.
 //   1b. first free tick after own blockstun, meter full -> Overwind reversal when the blocked attack
 //                                 (already perceived, extrapolated from public frame data) leaves an
 //                                 Overwind-sized window (superBlockPunishChance, or always at
@@ -28,9 +32,9 @@
 //
 // Personalities (story-011, src/ai/personalities.js) only rescale these numbers before the pilot is
 // built; the fairness rules (reaction delay, input snapshot only, public state) are unchanged.
-import { STATE, PHASE, moveTotal, overwindReady } from '../sim/state-machine.js';
+import { STATE, PHASE, moveTotal, overwindReady, canAfford } from '../sim/state-machine.js';
 import { SeededRng } from '../core/rng.js';
-import { DelayedView, createObservation, observe } from './perception.js';
+import { DelayedView, createObservation, observe, createHazardObservation, observeHazards } from './perception.js';
 import { applyPersonality } from './personalities.js';
 
 /** No personalities: the default table of a pilot built without one. */
@@ -62,8 +66,11 @@ const SPECIAL_KEYS = Object.freeze(['specialForward', 'specialBack']);
 
 /** Why the CPU produced this tick's input (debug readout; non-neutral reasons). */
 export const REASON = Object.freeze({
-  KO: 'ko', STUNNED: 'stunned', BLOCK: 'block', EVADE: 'evade', BLOCKSTUN: 'blockstun', PUNISH: 'punish',
+  KO: 'ko', STUNNED: 'stunned', BLOCK: 'block', EVADE: 'evade', BLOCKSTUN: 'blockstun', PUNISH: 'punish', HAZARD: 'hazard',
 });
+
+/** Hazard slots a pilot preallocates (sim.hazards beyond this are invisible to it). */
+const MAX_HAZARDS = 8;
 
 const DEFENCE_NONE = 0;
 const DEFENCE_BLOCK = 1;
@@ -162,7 +169,7 @@ export class CpuPilot {
    * @example
    *   const ai = buildDifficultySet(aiJson);
    *   const cpu = new CpuPilot({ difficulty: ai.levels.normal, behaviour: ai.behaviour, rules: ruleset.rules, seed: 7 });
-   *   cpu.sample(snapshot, sim.fighters[1], sim.fighters[0]); // then stepDuel(...)
+   *   cpu.sample(snapshot, sim.fighters[1], sim.fighters[0], sim.hazards); // then stepDuel(...)
    * @param {object} opts
    * @param {Readonly<Record<string, number>>} opts.difficulty a level (buildDifficulty / buildDifficultySet)
    * @param {Readonly<Record<string, number>>} opts.behaviour shared tuning (buildBehaviour)
@@ -191,6 +198,13 @@ export class CpuPilot {
     this.onDecision = onDecision;
     this.view = new DelayedView(difficulty.reactionFrames);
     this.me = createObservation();
+    /** Perceived stage hazards (perception.js observeHazards), slot i = sim.hazards[i]. */
+    this.hazards = [];
+    for (let i = 0; i < MAX_HAZARDS; i++) this.hazards.push(createHazardObservation());
+    this.hazardCount = 0;
+    /** Per hazard: the telegraph cycle last rolled and whether that roll said "evade". */
+    this.hazardCycle = new Int32Array(MAX_HAZARDS);
+    this.hazardGo = new Uint8Array(MAX_HAZARDS);
     this.weights = new Float64Array(PLANS.length);
     /** Scratch: special keys that fit this decision (allocation-free). */
     this.fits = new Array(SPECIAL_KEYS.length).fill(null);
@@ -204,6 +218,9 @@ export class CpuPilot {
   /** Forget the opponent's history and the current plan (call on a round reset). */
   reset() {
     this.view.reset();
+    this.hazardCount = 0;
+    this.hazardCycle.fill(0);
+    this.hazardGo.fill(0);
     this.frame = 0;
     this.serial = 0;
     this.prevState = STATE.IDLE;
@@ -225,14 +242,17 @@ export class CpuPilot {
   }
 
   /**
-   * Fill `out` for one sim tick. Reads `self` and `opp` only (never writes them).
+   * Fill `out` for one sim tick. Reads `self`, `opp` and `hazards` only (never writes them).
    * @param {ReturnType<typeof import('../input/input-snapshot.js').createSnapshot>} out
    * @param {Readonly<Record<string, any>>} self the fighter this CPU drives
    * @param {Readonly<Record<string, any>>} opp the other fighter
+   * @param {ReadonlyArray<Readonly<Record<string, any>>>|null} [hazards] sim.hazards (stage hazards the
+   *   CPU may see, reactionFrames late); null = none
    */
-  sample(out, self, opp) {
+  sample(out, self, opp, hazards = null) {
     const me = observe(this.me, self, this.frame);
     const them = this.view.push(opp);
+    this.hazardCount = hazards === null ? 0 : observeHazards(this.hazards, hazards, this.difficulty.reactionFrames);
     // Own state is known instantly: the first free tick after own blockstun.
     const leftBlockstun = this.wasBlockstun && me.state !== STATE.BLOCKSTUN;
     this.wasBlockstun = me.state === STATE.BLOCKSTUN;
@@ -254,6 +274,9 @@ export class CpuPilot {
     const dx = them.x - me.x;
     const dz = them.z - me.z;
     const dist = Math.hypot(dx, dz);
+
+    // 1a. Step out of a stage hazard zone the CPU can see (story-013).
+    if (this.hazardCount > 0 && this.#hazardEscape(out, me, them, self, myR)) return this.#say(REASON.HAZARD, out);
 
     // 1b. Overwind reversal after a blocked attack that leaves an Overwind-sized window.
     if (leftBlockstun && overwindReady(self) && this.#wantsReversal(self, them, dist, theirR)) {
@@ -363,9 +386,69 @@ export class CpuPilot {
     return comeback || this.rng.chance(d.superBlockPunishChance);
   }
 
-  /** True when punish key `key` may be used now (Overwind only with a full meter and a won roll). */
+  /**
+   * True when punish key `key` may be used now: Overwind only with a full meter and a won roll, and
+   * any move only when its meterCost (moves.js) is affordable.
+   */
   #punishAllowed(self, key) {
-    return key !== 'overwind' || (this.superGo && overwindReady(self));
+    if (key === 'overwind') return this.superGo && overwindReady(self);
+    const m = self.moves[self.moveInputs[key]];
+    return m === undefined || canAfford(self, m);
+  }
+
+  /**
+   * Whether the CPU acts on hazard slot `i` this telegraph cycle: one hazardEvadeChance roll per
+   * cycle (so levels that ignore some vents keep ignoring the same one). No roll without a hazard.
+   */
+  #hazardWanted(i, o) {
+    if (this.hazardCycle[i] !== o.cycle) {
+      this.hazardCycle[i] = o.cycle;
+      this.hazardGo[i] = this.rng.chance(this.difficulty.hazardEvadeChance) ? 1 : 0;
+    }
+    return this.hazardGo[i] === 1;
+  }
+
+  /**
+   * Standing in a visible hazard zone the roll says to leave, and free to move: walk out by the
+   * nearer lane exit (body radius + reachMargin clear of the zone), the other one if that exit
+   * would leave the ring. Writes the stick toward/away from the opponent as the lane direction
+   * requires; false when there is nothing to escape (or the CPU is attacking / stunned).
+   */
+  #hazardEscape(out, me, them, self, myR) {
+    if (CAN_SIDESTEP[me.state] !== true && me.state !== STATE.GUARD) return false;
+    const margin = myR + this.behaviour.reachMargin;
+    const edge = self.movement.ringRadius - this.behaviour.ringEdgeMargin;
+    for (let i = 0; i < this.hazardCount; i++) {
+      const o = this.hazards[i];
+      if (!o.visible || me.x + margin < o.x0 || me.x - margin > o.x1) continue;
+      if (!this.#hazardWanted(i, o)) continue;
+      const toLeft = me.x + margin - o.x0; // walk -x this far
+      const toRight = o.x1 - (me.x - margin); // walk +x this far
+      let dir = toLeft <= toRight ? -1 : 1;
+      if (Math.abs(me.x + dir * (dir < 0 ? toLeft : toRight)) > edge) dir = -dir;
+      out.stick.x = them.x >= me.x ? dir : -dir; // stick +x = toward the opponent
+      out.stick.y = 0;
+      out.guard = false;
+      this.planLeft = 0;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * True when walking in world direction `worldDir` (+-1 along the lane) would enter a visible
+   * hazard zone the roll says to respect, within a body radius plus threatMargin of look-ahead.
+   */
+  #hazardAhead(me, worldDir, myR) {
+    const near = me.x + worldDir * myR;
+    const far = near + worldDir * (myR + this.behaviour.threatMargin);
+    const lo = near < far ? near : far;
+    const hi = near < far ? far : near;
+    for (let i = 0; i < this.hazardCount; i++) {
+      const o = this.hazards[i];
+      if (o.visible && hi >= o.x0 && lo <= o.x1 && this.#hazardWanted(i, o)) return true;
+    }
+    return false;
   }
 
   #say(reason, out, key = null) {
@@ -475,8 +558,9 @@ export class CpuPilot {
   }
 
   /**
-   * Fill `this.fits` with the special keys whose move's aiRole fits the (delayed) view this tick
-   * and which reach `dist` (minus reachMargin); returns how many. Never branches on character.
+   * Fill `this.fits` with the special keys whose move's aiRole fits the (delayed) view this tick,
+   * whose meterCost (if any) the CPU can pay, and which reach `dist` (minus reachMargin); returns
+   * how many. Never branches on character.
    *   gapClose     pokeR < dist <= its reach
    *   lowPoke      in reach and the opponent stands guarding or is in the startup of an armoured move
    *   antiStep     in reach and the opponent is sidestepping
@@ -487,7 +571,7 @@ export class CpuPilot {
     for (const key of SPECIAL_KEYS) {
       const id = self.moveInputs[key];
       const m = id === undefined ? undefined : self.moves[id];
-      if (m === undefined || m.aiRole === undefined) continue;
+      if (m === undefined || m.aiRole === undefined || !canAfford(self, m)) continue;
       if (dist > moveReach(m, targetR) - this.behaviour.reachMargin) continue;
       let fits = false;
       switch (m.aiRole) {
@@ -547,10 +631,15 @@ export class CpuPilot {
         const b = this.behaviour;
         const goal = (guarding ? keyReach(self, 'throw', theirR) : bestPokeReach(self, b.pokeKeys, theirR)) - b.reachMargin;
         if (dist <= goal) this.planLeft = 1; // in range: re-decide next tick
+        // A visible hazard zone on the way: hold here (the plan re-rolls when it runs out).
+        if (this.hazardCount > 0 && this.#hazardAhead(me, them.x >= me.x ? 1 : -1, bodyRadiusOf(self, this.rules))) out.stick.x = 0;
         break;
       }
       case PLAN.BACK_OFF: {
         const edge = self.movement.ringRadius - this.behaviour.ringEdgeMargin;
+        if (this.hazardCount > 0 && this.#hazardAhead(me, them.x >= me.x ? -1 : 1, bodyRadiusOf(self, this.rules))) {
+          break; // backing into a visible hazard zone: hold instead
+        }
         if (Math.hypot(me.x, me.z) > edge) {
           this.plan = PLAN.SIDESTEP; // cornered: circle out instead of backing into the edge
           this.planTick = 0;

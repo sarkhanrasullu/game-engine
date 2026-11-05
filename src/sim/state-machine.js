@@ -106,6 +106,15 @@ export function overwindReady(f) {
   return f.meter >= f.meterMax && f.hp > 0;
 }
 
+/**
+ * True when `f` can pay move `m`'s meterCost now (a move without one is always affordable).
+ * @example canAfford(f, f.moves.specialBack) // false while f.meter < specialBack.meterCost
+ * @param {import('./moves.js').MoveData} m
+ */
+export function canAfford(f, m) {
+  return m.meterCost === undefined || f.meter >= m.meterCost;
+}
+
 /** True while `f` performs its own Overwind, start through end of recovery (no meter gain). */
 export function inOwnOverwind(f) {
   return f.state === S.ATTACK && f.moveId === f.moveInputs.overwind;
@@ -132,7 +141,8 @@ export function bufferInput(f, input, rules) {
 /**
  * Move id the buffered press starts now, or null. Heavy resolves first match wins (story-009 §2):
  * Guard + full meter -> overwind; crouching -> crouchHeavy; bufDir >= +threshold -> specialForward;
- * bufDir <= -threshold -> specialBack; else heavy. A missing special id (greybox) falls to heavy.
+ * bufDir <= -threshold -> specialBack; else heavy. A missing special id (greybox) or one whose
+ * meterCost the fighter cannot pay falls to heavy.
  */
 export function bufferedMoveId(f, meter) {
   const inputs = f.moveInputs;
@@ -143,8 +153,8 @@ export function bufferedMoveId(f, meter) {
       if (f.guardHeld && overwindReady(f)) return inputs.overwind;
       if (f.crouching) return inputs.crouchHeavy;
       const th = meter.specialDirThreshold;
-      if (f.bufDir >= th && inputs.specialForward !== undefined && f.moves[inputs.specialForward] !== undefined) return inputs.specialForward;
-      if (f.bufDir <= -th && inputs.specialBack !== undefined && f.moves[inputs.specialBack] !== undefined) return inputs.specialBack;
+      if (f.bufDir >= th && specialAvailable(f, inputs.specialForward)) return inputs.specialForward;
+      if (f.bufDir <= -th && specialAvailable(f, inputs.specialBack)) return inputs.specialBack;
       return inputs.heavy;
     }
     case BUFFER.LIGHT:
@@ -152,6 +162,13 @@ export function bufferedMoveId(f, meter) {
     default:
       return null;
   }
+}
+
+/** A special id the kit has and the fighter can pay for now. */
+function specialAvailable(f, id) {
+  if (id === undefined) return false;
+  const m = f.moves[id];
+  return m !== undefined && canAfford(f, m);
 }
 
 /**
@@ -213,8 +230,10 @@ function beginMove(f, opp, moveId) {
     f.attackDirX = Math.sin(f.yaw);
     f.attackDirZ = Math.cos(f.yaw);
   }
-  // Overwind spends the whole meter on frame 1, before the freeze (story-009 §3).
+  // Overwind spends the whole meter on frame 1, before the freeze (story-009 §3); a move with a
+  // meterCost spends that much (clamped at 0) on the same tick.
   if (moveId === f.moveInputs.overwind) f.meter = 0;
+  else if (f.move.meterCost !== undefined) f.meter = f.meter > f.move.meterCost ? f.meter - f.move.meterCost : 0;
   f.travelStopped = false;
   f.bufAction = BUFFER.NONE;
   f.bufFrames = 0;
@@ -237,7 +256,8 @@ export function decideFighter(f, opp, input, rules, meter) {
 
   if (ACTIONABLE[f.state] === true && f.grounded) {
     const id = bufferedMoveId(f, meter);
-    if (id !== null) startAttack(f, opp, id);
+    // An unaffordable move (meterCost) is refused; the press stays buffered until it ages out.
+    if (id !== null && canAfford(f, f.moves[id])) startAttack(f, opp, id);
     else if (f.guardHeld) setState(f, S.GUARD);
     else if (f.state === S.GUARD) setState(f, S.IDLE);
   }

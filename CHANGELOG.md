@@ -2,6 +2,32 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
+## 0.4.0 (2026-11-05)
+
+Stage hazards, meter-costed moves and the audio kernel the consumer's third fighter needed. Additive:
+rulesets without `hazards` or `meterCost` behave as before.
+
+- `./sim` stage hazards (`src/sim/hazards.js`): a `hazards` ruleset section — telegraphed lane zones
+  (`zone {x0,x1[,y0,y1]}`, `cycle {telegraph_ms >= 500, active_ms, period_ms, phase_ms, jitter_ms}`,
+  `effect {damage, knockback, hitstun_frames, launch, ignores_guard, armor_breaks, guard_scale,
+  hitstop, shake, flash, fx}`, `schedule periodic|random|scripted`), validated by `buildHazards`;
+  `stepDuel` emits `hazard_telegraph { id, zone, in_frames }`, `hazard_active`, `hazard_hit { target,
+  damage, knockback, blocked, armor, ... }`, `hazard_end`, one strike per fighter per activation,
+  i-frames honoured, paused by hitstop and super freeze. `createDuel(rs, { hazards, seed })`,
+  `setHazardsEnabled`, `setDuelHazards` (per-stage swap), `sim.koBy`, `KO_BY`. Event pool 8 -> 12.
+- `./sim` match flow: `ROUND_REASON.HAZARD`, `isKoReason(reason)`, `MatchFlow#update(dt, hp0, hp1,
+  koReason)`.
+- `./sim` moves schema: optional `meterCost` (integer >= 0) on any move — spent from the meter on
+  the move's frame 1 (clamped at 0); a move the fighter cannot pay for does not start (a Heavy that
+  would resolve to such a special falls back to `heavy`, any other id is refused and the press stays
+  buffered). New `canAfford(f, move)` export. Tests: `test/sim/meter-cost.test.js`.
+- `./ai`: `CpuPilot#sample(out, self, opp, hazards)` steps out of telegraphed zones with a
+  difficulty-scaled `hazardEvadeChance` (optional level key, default `1 - mistakeRate`, locked for
+  personalities); `observeHazards` perception; the pilot never picks unaffordable specials or punishes.
+- `./tools/audio/dsp.mjs`: `springTone` kernel (coil twang partial) for the renderer.
+- Tests: `test/sim/hazards.test.js` (13), `test/ai/hazard-perception.test.js` (5), meter cost (6),
+  render-bank (+1). Suite 253 -> 277.
+
 ## 0.3.0 (2026-11-05)
 
 The extraction is complete (ADR-0004 ENG-07d) and the engine gains the hooks a premium fight needs:

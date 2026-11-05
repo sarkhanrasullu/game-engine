@@ -8,10 +8,12 @@ import { createCombatant, resetCombatant, updateHitbox } from './fighter.js';
 import { updateHurtboxes } from './hurtbox.js';
 import { cylindersOverlap } from '../core/collision.js';
 import { Hitstop } from '../core/hitstop.js';
+import { SeededRng } from '../core/rng.js';
 import {
   STATE, PHASE, attackPhase, bufferInput, decideFighter, advanceFighter, setState, startPushback,
   applyTravel, inOwnOverwind,
 } from './state-machine.js';
+import { HAZARD_EVENT_NUM_FIELDS, KO_BY, createHazardRuntime, resetHazards, stepHazards } from './hazards.js';
 
 /** Outcome of one attack against one defender on one tick. */
 export const CONNECT = Object.freeze({ NONE: 0, HIT: 1, BLOCK: 2, THROW: 3 });
@@ -27,33 +29,43 @@ export const EVENT = Object.freeze({ HIT: 'hit', BLOCK: 'block', THROW: 'throw',
  */
 export const CUE = Object.freeze({ METER_FULL: 'meterFull', OVERWIND_START: 'overwindStart' });
 
-const MAX_EVENTS = 8;
+const MAX_EVENTS = 12;
 const MAX_CUES = 4;
 /**
  * Numeric event fields, zeroed when the event pool is created. armor: 1 when the hit was absorbed
  * by the defender's move armour (damage taken, no hitstun), else 0. super: 1 when the attacker's
- * move is its Overwind (story-009 §7), else 0.
+ * move is its Overwind (story-009 §7), else 0. Hazard events (hazards.js) add in_frames, target,
+ * knockback and blocked, plus the string `id` and the frozen `zone` reference; attacker is -1 on them.
  */
-const EVENT_NUM_FIELDS = ['attacker', 'defender', 'damage', 'defenderHp', 'x', 'y', 'z', 'shake', 'flash', 'armor', 'super'];
+const EVENT_NUM_FIELDS = ['attacker', 'defender', 'damage', 'defenderHp', 'x', 'y', 'z', 'shake', 'flash', 'armor', 'super', ...HAZARD_EVENT_NUM_FIELDS];
 
 /** Move-table validation lives with the move schema; re-exported here for existing callers. */
 export { validateMoveTable };
 
 function createEvent() {
-  const e = { type: '', moveId: '', fx: '', level: '' };
+  const e = { type: '', moveId: '', fx: '', level: '', id: '', zone: null };
   for (const k of EVENT_NUM_FIELDS) e[k] = 0;
   return e;
 }
 
+/** No hazards: the section of a ruleset built without one. */
+const NO_HAZARDS = Object.freeze([]);
+
 /**
  * Create a duel: two fighters facing each other at ±startOffset, both meters empty.
  * @example const sim = createDuel(ruleset); stepDuel(sim, in0, in1, 1 / 60);
+ * @example const quiet = createDuel(ruleset, { hazards: false }); // the stage's hazards never fire (training)
  * @param {{rules: Readonly<Record<string, number>>, movement: Readonly<Record<string, number>>,
- *   meter: Readonly<Record<string, number>>, moves: Readonly<Record<string, import('./moves.js').MoveData>>}} ruleset
+ *   meter: Readonly<Record<string, number>>, moves: Readonly<Record<string, import('./moves.js').MoveData>>,
+ *   hazards?: ReadonlyArray<import('./hazards.js').HazardData>}} ruleset
  *   a ruleset from createRuleset (the round section is not read here)
+ * @param {{hazards?: boolean, seed?: number}} [opts] hazards: run the ruleset's hazards (default true;
+ *   setHazardsEnabled flips it later). seed: the sim rng (random hazard schedules); same seed + same
+ *   inputs = same duel.
  */
-export function createDuel(ruleset) {
+export function createDuel(ruleset, { hazards = true, seed = 1 } = {}) {
   const { rules, movement, meter } = ruleset;
+  const hazardData = ruleset.hazards ?? NO_HAZARDS;
   const f0 = createCombatant(0, -movement.startOffset, 0, ruleset);
   const f1 = createCombatant(1, movement.startOffset, 0, ruleset);
   f0.movement = movement;
@@ -64,7 +76,7 @@ export function createDuel(ruleset) {
   for (let i = 0; i < MAX_EVENTS; i++) events.push(createEvent());
   const cues = [];
   for (let i = 0; i < MAX_CUES; i++) cues.push({ type: '', side: 0, freezeFrames: 0 });
-  return {
+  const sim = {
     fighters: [f0, f1],
     hitstop: new Hitstop(),
     events,
@@ -78,10 +90,47 @@ export function createDuel(ruleset) {
     frame: 0,
     /** Tick of the first KO, -1 while both stand. */
     koFrame: -1,
+    /** What scored the first KO (hazards.js KO_BY): '' while both stand, 'attack' or 'hazard'. */
+    koBy: KO_BY.NONE,
+    /** Seeded sim rng (random hazard schedules); never used by fighters or hits. */
+    rng: new SeededRng(seed),
+    /** Hazard runtimes (hazards.js createHazardRuntime), one per ruleset hazard, in data order. */
+    hazards: hazardData.map(createHazardRuntime),
+    /** Hazards run this duel (toggle: setHazardsEnabled). Always false without hazard data. */
+    hazardsEnabled: hazards === true && hazardData.length > 0,
+    /** Unfrozen ticks since the last reset; the hazard schedules count on it. */
+    hazardClock: 0,
     rules,
     movement,
     meter,
   };
+  resetHazards(sim);
+  return sim;
+}
+
+/**
+ * Turn the ruleset's hazards on or off for this duel (story-013: off in training and on ranked
+ * ladder rungs by default). Rewinds every hazard clock; a duel without hazard data stays off.
+ * @example setHazardsEnabled(sim, settings.hazards === true); // at MATCH_START
+ * @param {ReturnType<typeof createDuel>} sim
+ * @param {boolean} on
+ */
+export function setHazardsEnabled(sim, on) {
+  sim.hazardsEnabled = on === true && sim.hazards.length > 0;
+  resetHazards(sim);
+}
+
+/**
+ * Swap the duel's hazard list for another stage's (a built `hazards` section, buildHazards) and set
+ * the toggle. Allocates the new runtimes once per call (a stage change, never per tick); clocks rewind.
+ * @example setDuelHazards(sim, stageRuleset.hazards, settings.hazards === true); // at MATCH_START
+ * @param {ReturnType<typeof createDuel>} sim
+ * @param {ReadonlyArray<import('./hazards.js').HazardData>|undefined} hazards built hazard data (undefined = none)
+ * @param {boolean} [enabled] run them (default: keep the current toggle)
+ */
+export function setDuelHazards(sim, hazards, enabled = sim.hazardsEnabled) {
+  sim.hazards = (hazards ?? NO_HAZARDS).map(createHazardRuntime);
+  setHazardsEnabled(sim, enabled);
 }
 
 /**
@@ -123,6 +172,8 @@ export function resetDuel(sim) {
   sim.cueCount = 0;
   sim.freezeLeft = 0;
   sim.koFrame = -1;
+  sim.koBy = KO_BY.NONE;
+  resetHazards(sim);
 }
 
 /**
@@ -211,7 +262,10 @@ function applyConnect(sim, a, b, m, result, aGain, bGain) {
     }
     setState(b, STATE.KO);
     b.stunLeft = 0;
-    if (sim.koFrame < 0) sim.koFrame = sim.frame;
+    if (sim.koFrame < 0) {
+      sim.koFrame = sim.frame;
+      sim.koBy = KO_BY.ATTACK;
+    }
     emit(sim, EVENT.HIT, a, b, m, m.shake, m.flash, dmg, 1);
     emit(sim, EVENT.KO, a, b, m, rules.koShake, rules.koFlash);
     return m.hitstop > rules.koHitstop ? m.hitstop : rules.koHitstop;
@@ -233,7 +287,10 @@ function applyConnect(sim, a, b, m, result, aGain, bGain) {
   if (b.hp === 0) {
     setState(b, STATE.KO);
     b.stunLeft = 0;
-    if (sim.koFrame < 0) sim.koFrame = sim.frame;
+    if (sim.koFrame < 0) {
+      sim.koFrame = sim.frame;
+      sim.koBy = KO_BY.ATTACK;
+    }
     emit(sim, isThrow ? EVENT.THROW : EVENT.HIT, a, b, m, m.shake, m.flash);
     emit(sim, EVENT.KO, a, b, m, rules.koShake, rules.koFlash);
     return m.hitstop > rules.koHitstop ? m.hitstop : rules.koHitstop;
@@ -325,4 +382,6 @@ export function stepDuel(sim, in0, in1, dt) {
   applyTravel(f0, f1, f0.movement);
   applyTravel(f1, f0, f1.movement);
   resolveHits(sim);
+  // Stage hazards (hazards.js) after the fighters' own hits; their clocks pause with the world above.
+  if (sim.hazardsEnabled) stepHazards(sim, EVENT.KO);
 }

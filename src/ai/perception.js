@@ -2,6 +2,7 @@
 // preallocated observation, and delays the opponent's observations by the level's reaction time.
 // Pure, DOM-free, three-free, allocation-free per tick.
 import { attackPhase, PHASE } from '../sim/state-machine.js';
+import { hazardTimeToActive } from '../sim/hazards.js';
 
 /**
  * Public, on-screen view of one fighter. `move` is the frozen frame-data record of the attack
@@ -39,6 +40,45 @@ export function observe(o, f, frame) {
   o.attackHasHit = f.attackHasHit;
   o.frame = frame;
   return o;
+}
+
+/**
+ * Public, on-screen view of one stage hazard (hazards.js): its lane zone and how soon it hurts.
+ * `visible` is false while the hazard is idle or its telegraph is younger than the CPU's reaction
+ * delay; `inFrames` is 0 while the zone is active; `cycle` counts its telegraphs (a per-activation serial).
+ * @returns {{id:string,x0:number,x1:number,y0:number,y1:number,inFrames:number,visible:boolean,cycle:number}}
+ */
+export function createHazardObservation() {
+  return { id: '', x0: 0, x1: 0, y0: 0, y1: 0, inFrames: -1, visible: false, cycle: 0 };
+}
+
+/**
+ * Copy what a player can see of the sim's hazards into `list` (preallocated observations, one slot
+ * per hazard, same order as `hazards`), `delay` ticks late: a telegraph is seen once it has been
+ * showing for `delay` ticks, an active zone always. Never writes to `hazards`; allocation-free.
+ * @example const n = observeHazards(zones, sim.hazards, difficulty.reactionFrames); // zones[i].visible
+ * @param {ReturnType<typeof createHazardObservation>[]} list
+ * @param {ReadonlyArray<Readonly<Record<string, any>>>} hazards sim.hazards (read only)
+ * @param {number} delay reaction frames
+ * @returns {number} slots written: min(hazards.length, list.length)
+ */
+export function observeHazards(list, hazards, delay) {
+  const n = hazards.length < list.length ? hazards.length : list.length;
+  for (let i = 0; i < n; i++) {
+    const h = hazards[i];
+    const o = list[i];
+    const z = h.data.zone;
+    const t = hazardTimeToActive(h);
+    o.id = h.data.id;
+    o.x0 = z.x0;
+    o.x1 = z.x1;
+    o.y0 = z.y0;
+    o.y1 = z.y1;
+    o.cycle = h.cycle;
+    o.inFrames = t;
+    o.visible = t === 0 || (t > 0 && h.data.telegraphFrames - h.left >= delay);
+  }
+  return n;
 }
 
 /**

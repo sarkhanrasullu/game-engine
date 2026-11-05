@@ -25,14 +25,26 @@ export const MATCH_EVENT = Object.freeze({
   ROUND_START: 'roundStart',
   /** payload: round number; inputs unlock */
   FIGHT: 'fight',
-  /** payload: { round, winner: 0|1|-1, reason: 'ko'|'time', wins } */
+  /** payload: { round, winner: 0|1|-1, reason: 'ko'|'hazard'|'time', wins } */
   ROUND_END: 'roundEnd',
   /** payload: match result (see MatchFlow#result); the AdService (story 007) listens here */
   MATCH_END: 'matchEnd',
 });
 
-/** Why a round ended. */
-export const ROUND_REASON = Object.freeze({ KO: 'ko', TIME: 'time' });
+/**
+ * Why a round ended. HAZARD is a KO scored by a stage hazard (hazards.js; the host passes it to
+ * update() from `sim.koBy`): it counts as a KO everywhere (slow-mo, isKoReason), the HUD may call it.
+ */
+export const ROUND_REASON = Object.freeze({ KO: 'ko', HAZARD: 'hazard', TIME: 'time' });
+
+/**
+ * True for the reasons that are a knockout (KO by a fighter or by a hazard), false for a time-out.
+ * @example if (isKoReason(r.reason)) view.finalKo();
+ * @param {string} reason a ROUND_REASON
+ */
+export function isKoReason(reason) {
+  return reason === ROUND_REASON.KO || reason === ROUND_REASON.HAZARD;
+}
 
 /**
  * Winner of a round from the two HP fractions (0..1): 0 or 1, -1 for a draw (double KO, or
@@ -141,7 +153,7 @@ export class MatchFlow {
 
   /** Sim time scale: koSlowMoScale just after a KO, else 1. */
   get timeScale() {
-    return this.state === MATCH_STATE.ROUND_END && this.lastRound.reason === ROUND_REASON.KO
+    return this.state === MATCH_STATE.ROUND_END && isKoReason(this.lastRound.reason)
       && this.stateTime < this.rules.koSlowMoSeconds ? this.rules.koSlowMoScale : 1;
   }
 
@@ -158,11 +170,14 @@ export class MatchFlow {
 
   /**
    * Advance the flow by `dt` seconds of real time. Call once per sim tick, after the sim step.
+   * @example flow.update(dt, p1.hp / p1.maxHp, p2.hp / p2.maxHp, sim.koBy === KO_BY.HAZARD ? ROUND_REASON.HAZARD : ROUND_REASON.KO);
    * @param {number} dt seconds
    * @param {number} hp0 fighter 0 HP fraction (hp / maxHp)
    * @param {number} hp1 fighter 1 HP fraction
+   * @param {string} [koReason] reason recorded if a fighter is at 0 HP this tick: ROUND_REASON.KO
+   *   (default) or ROUND_REASON.HAZARD when a stage hazard scored the KO (sim.koBy)
    */
-  update(dt, hp0, hp1) {
+  update(dt, hp0, hp1, koReason = ROUND_REASON.KO) {
     const s = this.state;
     if (s === MATCH_STATE.IDLE || s === MATCH_STATE.RESULT) return;
     if (s !== MATCH_STATE.MATCH_END) this.durationSec += dt;
@@ -176,7 +191,7 @@ export class MatchFlow {
     } else if (s === MATCH_STATE.FIGHT) {
       this.timeLeft = Math.max(0, this.timeLeft - dt);
       const winner = roundWinner(hp0, hp1, this.timeLeft <= 0);
-      if (winner !== null) this.endRound(winner, hp0 <= 0 || hp1 <= 0 ? ROUND_REASON.KO : ROUND_REASON.TIME);
+      if (winner !== null) this.endRound(winner, hp0 <= 0 || hp1 <= 0 ? koReason : ROUND_REASON.TIME);
     } else if (s === MATCH_STATE.ROUND_END) {
       if (this.stateTime >= r.roundEndSeconds) {
         if (this.matchWinner() === null) this.beginRound();

@@ -103,3 +103,19 @@ test('dsp kernels: biquad lowpass attenuates highs, modal body decays, flutter s
   assert.ok(Math.abs(sp.centroidHz - 1000) < 60, `centroid ${sp.centroidHz}`);
   assert.ok(sp.flatness < 0.05, 'a sine is not flat');
 });
+
+test('dsp springTone: pitch settles from f0 to f1 (the coil twang), vibrato decays, unit-ish peak', () => {
+  const sr = SR * 6; // 48 kHz
+  const y = dsp.springTone({ sr, seconds: 0.6, f0: 900, f1: 420, settle: 0.1, vibHz: 25, vibCents: 150 });
+  assert.equal(y.length, dsp.sec(0.6, sr));
+  assert.ok(dsp.peak(y) > 0.9 && dsp.peak(y) <= 1.3, `peak ${dsp.peak(y)}`);
+  // after the settle the tone sits at f1 (2nd harmonic baked under it): centroid near 420-500 Hz
+  const tail = y.subarray(dsp.sec(0.3, sr));
+  const sp = dsp.spectrum(tail, sr, 0.15);
+  assert.ok(sp.centroidHz > 380 && sp.centroidHz < 560, `settled centroid ${sp.centroidHz}`);
+  // the head is higher-pitched than the tail
+  const head = dsp.spectrum(y.subarray(0, dsp.sec(0.05, sr)), sr, 0.05);
+  assert.ok(head.centroidHz > sp.centroidHz + 150, `head ${head.centroidHz} vs tail ${sp.centroidHz}`);
+  // deterministic (no rng)
+  assert.deepEqual(Array.from(y.subarray(0, 64)), Array.from(dsp.springTone({ sr, seconds: 0.6, f0: 900, f1: 420, settle: 0.1, vibHz: 25, vibCents: 150 }).subarray(0, 64)));
+});

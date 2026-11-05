@@ -13,8 +13,8 @@ import {
  * (decision tempo, mistakes, spacing calibration).
  */
 export const LOCKED_KEYS = Object.freeze([
-  'reactionFrames', 'decisionFrames', 'mistakeRate', 'planJitterFrames', 'reachMargin', 'threatMargin',
-  'ringEdgeMargin',
+  'reactionFrames', 'decisionFrames', 'mistakeRate', 'hazardEvadeChance', 'planJitterFrames', 'reachMargin',
+  'threatMargin', 'ringEdgeMargin',
 ]);
 
 /** Keys a personality may scale or set: every numeric AI key that is not locked (derived). */

@@ -228,6 +228,29 @@ export function tone({ sr, seconds, wave = 'sine', f0, f1 = f0, sweep = seconds,
 }
 
 /**
+ * Plucked-spring tone ("twang"): a sine whose pitch drops exponentially from `f0` to `f1` over `settle`
+ * seconds while a vibrato of `vibHz` (depth `vibCents`, itself decaying over `settle`) wobbles it, with a
+ * baked 2nd harmonic at `h2Db`. Unit-ish peak, no envelope (multiply by env()).
+ * @example multiply(springTone({ sr, seconds: 0.4, f0: 900, f1: 420, settle: 0.12, vibHz: 28, vibCents: 180 }), env({ sr, seconds: 0.4, t60: 0.25 }))
+ */
+export function springTone({ sr, seconds, f0, f1 = f0 * 0.5, settle = 0.1, vibHz = 25, vibCents = 150, h2Db = -9 }) {
+  const n = sec(seconds, sr);
+  const out = new Float64Array(n);
+  const ns = Math.max(1, sec(settle, sr));
+  const h2 = dbToGain(h2Db);
+  let ph = 0;
+  for (let i = 0; i < n; i++) {
+    const u = Math.min(1, i / ns);
+    const t = i / sr;
+    const wob = vibCents * Math.exp(-3 * t / settle) * Math.sin(TAU * vibHz * t);
+    const f = f0 * (f1 / f0) ** u * 2 ** (wob / 1200);
+    ph += f / sr;
+    out[i] = Math.sin(TAU * ph) + h2 * Math.sin(TAU * 2 * ph);
+  }
+  return out;
+}
+
+/**
  * Hertzian contact pulse: a half-sine of `ms` milliseconds (0.5-3 ms; harder = shorter), unit peak.
  * The excitation for a modal body.
  */

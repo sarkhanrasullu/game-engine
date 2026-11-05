@@ -22,17 +22,24 @@ import { numberTable } from '../core/data.js';
  *   superComebackHp    own HP fraction at or below which a full-meter punish (whiff punish or blocked-attack
  *                      reversal) always spends Overwind (comeback rule; 0 = never). Overwind is never
  *                      thrown out raw in neutral.
+ *   hazardEvadeChance  (optional in data; default 1 - mistakeRate) chance, rolled once per hazard
+ *                      telegraph it can see (reactionFrames late), that the CPU steps out of / stays
+ *                      out of a telegraphed stage hazard zone (story-013; hazards.js)
  */
 export const DIFFICULTY_KEYS = Object.freeze([
   'reactionFrames', 'decisionFrames', 'blockChance', 'sidestepChance', 'whiffPunishChance',
   'throwChance', 'aggression', 'mistakeRate', 'specialShare', 'superPunishChance', 'superBlockPunishChance',
-  'superComebackHp',
+  'superComebackHp', 'hazardEvadeChance',
 ]);
+
+/** Difficulty keys a level file may omit (filled with a derived default by buildDifficulty). */
+export const OPTIONAL_DIFFICULTY_KEYS = Object.freeze(['hazardEvadeChance']);
+const REQUIRED_DIFFICULTY_KEYS = Object.freeze(DIFFICULTY_KEYS.filter((k) => !OPTIONAL_DIFFICULTY_KEYS.includes(k)));
 
 /** Keys that are probabilities and must lie in 0..1. */
 export const UNIT_KEYS = Object.freeze([
   'blockChance', 'sidestepChance', 'whiffPunishChance', 'throwChance', 'aggression', 'mistakeRate',
-  'specialShare', 'superPunishChance', 'superBlockPunishChance', 'superComebackHp',
+  'specialShare', 'superPunishChance', 'superBlockPunishChance', 'superComebackHp', 'hazardEvadeChance',
 ]);
 
 /**
@@ -61,7 +68,13 @@ export const POKEABLE_KEYS = Object.freeze(['light', 'heavy', 'crouchLight', 'cr
  * @returns {Readonly<Record<string, number>>}
  */
 export function buildDifficulty(src, label = 'ai difficulty') {
-  const t = numberTable(src, DIFFICULTY_KEYS, label);
+  if (!src || typeof src !== 'object') throw new Error(`${label}: missing section`);
+  const { hazardEvadeChance, ...required } = src;
+  const base = numberTable(required, REQUIRED_DIFFICULTY_KEYS, label);
+  if (hazardEvadeChance !== undefined && (typeof hazardEvadeChance !== 'number' || !Number.isFinite(hazardEvadeChance))) {
+    throw new Error(`${label}: hazardEvadeChance must be a finite number`);
+  }
+  const t = Object.freeze({ ...base, hazardEvadeChance: hazardEvadeChance ?? 1 - base.mistakeRate });
   for (const k of UNIT_KEYS) {
     if (t[k] < 0 || t[k] > 1) throw new Error(`${label}: ${k} must be in 0..1`);
   }
