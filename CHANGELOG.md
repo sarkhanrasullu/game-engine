@@ -2,6 +2,39 @@
 
 Semver from 0.1.0. Before 1.0 a minor bump may break the API. Each release is a git tag `vX.Y.Z`.
 
+## 0.6.0 (unreleased)
+
+Fight systems (consumer design/quick-specs/fight-systems-gap-2026-11-05.md). Every new `rules` / `meter` / `movement` key is optional
+with the spec's value as its default (`RULE_DEFAULTS`, `METER_DEFAULTS`, `MOVEMENT_DEFAULTS`), so a game shipping no new data still
+validates. Every new difficulty key is optional and defaults to 0 (the level does not use the system).
+
+- `./sim` Counter-hit and punish-counter (P1): `counterTier(defender)`, `COUNTER_TIER { NONE, COUNTER, PUNISH }`, event field `counter`,
+  fighter field `hitCounter`. Keys `rules.counterDamageScale` 1.15, `counterHitstunBonus` 5, `punishDamageScale` 1.2, `punishHitstunBonus` 8,
+  `meter.counterMeterScale` 1.5. Tier read from the defender's phase before either side's connect, so a trade is two counters whichever side
+  applies first. Throws, armour absorbs and defenders not attacking get no tier. **Behaviour change:** a trade now deals scaled damage.
+  `FrameDataTracker.advantage` includes the tier's stun bonus. Tests: `test/sim/counter-hit.test.js`.
+- `./sim` Sidestep attack-cancel (P4): `movement.sidestepCancelSeconds` 0.13 (per-fighter key), `sidestepCancellable(f)`, transitions
+  SIDESTEP -> ATTACK / GUARD. No invulnerability; facing locks as for any attack; the arc stops at the cancel. A press more than
+  `inputBufferFrames` before the cut ages out: documented, the buffer is not extended. Tests: `test/sim/sidestep-cancel.test.js`.
+- `./sim` Throw tech (P2): `STATE.TECH`, `EVENT.TECH` (`attacker` = thrower, `defender` = the one who broke it, `moveId`, `damage` 0, `refund` = the
+  damage undone), `techReady(f, opp, rules)`, `OUTCOME.TECH`, move flag `techable` (throws only, default true). Keys `rules.throwTechWindow` 10,
+  `techFrames` 12, `techPushback` 0.6, `meter.techMeter` 3. Damage still lands at the connect (THROW event, KO flow and audio unchanged) and a tech
+  undoes the HP and the contact meter, so **a lethal throw KOs at the connect with no window.** Consumers tallying damage must subtract `refund`.
+  `computePose` gives TECH the block recoil as a placeholder. Tests: `test/sim/throw-tech.test.js`.
+- `./sim` `techWindowOpen(f, opp, rules)`: read-only "this throw can still be broken", the rule `techReady` is now built on, so presentation holds back what a tech
+  would undo (HP bar, meter gauge, landing impact) from the same source as the rule. `computePose` TECH uses a kit's optional `deltas.tech`, else the block recoil.
+  `FrameDataTracker.counter` holds the last contact's `COUNTER_TIER`. `./render` `hitKind` (now exported) calls a tech `'tech'`, never the throw it broke; no game
+  squash entry = no squash. No rule or number changed. Tests: `test/sim/tech-window.test.js`.
+- `./sim` Vent (P3): a Throw press in own BLOCKSTUN with the meter for it spends `meter.ventCost` 25 and pushes the attacker `meter.ventPushback` 0.9 away.
+  Blockstun runs on unchanged; below the cost, or on the tick blockstun ends, the press stays the throw it was. `ventReady(f, opp, meter)`, `CUE.VENT { side }`,
+  public fighter field `ventCost`. Tests: `test/sim/vent.test.js`.
+- `./ai` `CpuPilot`: `linkChance` (a strike into the defender's remaining stun after an own counter or punish, computed from public frame data, never
+  the hidden counter; `REASON.LINK`, counted as `string` in ActionMix), `stepPunishChance` (the only way out of a chosen sidestep; no neutral plan,
+  block or armoured counter acts inside one), `throwTechChance` (one roll per grab, `reactionFrames` after it; `REASON.TECH`; prefers an untechable
+  throw special once a throw of its was teched this round), `ventChance` (one roll per attack that has it in blockstun, only against a move it could not
+  punish, keeping the meter within one cost of full when it wants the Overwind; `REASON.VENT`). Observation adds `hitCounter` and `pushLeft`; `stunLeft` stays hidden.
+  Tests: `test/ai/fight-systems.test.js`.
+
 ## 0.5.1 (2026-11-05)
 
 Heroes on demand (consumer UX-2: a premium first minute on a slow connection). Additive; `preload()` /

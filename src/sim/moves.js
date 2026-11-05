@@ -31,10 +31,12 @@
 // spends the full meter). A move with meterCost > the fighter's meter cannot start: a Heavy that
 // would resolve to such a special falls back to heavy (state-machine.js bufferedMoveId), any other
 // id is refused and the press stays buffered. The CPU never picks an unaffordable move.
+// techable (optional, throws only; default true): false = a command grab, whose hold no throw tech breaks
+// (design/quick-specs/fight-systems-gap-2026-11-05.md P2).
 
 import { deepFreeze } from '../core/data.js';
 
-/** @typedef {{name:string,level:'high'|'mid'|'low'|'throw',startup:number,active:number,recovery:number,damage:number,hitstun:number,blockstun:number,thrownFrames:number,pushback:number,blockPushback:number,hitstop:number,blockHitstop:number,crouching:boolean,hitbox:{forward:number,radius:number,yMin:number,yMax:number},fx:'light'|'heavy'|'throw'|'super',shake:number,flash:number,cancel?:MoveCancel,armor?:MoveArmor,travel?:MoveTravel,aiRole?:string,meterCost?:number}} MoveData */
+/** @typedef {{name:string,level:'high'|'mid'|'low'|'throw',startup:number,active:number,recovery:number,damage:number,hitstun:number,blockstun:number,thrownFrames:number,pushback:number,blockPushback:number,hitstop:number,blockHitstop:number,crouching:boolean,hitbox:{forward:number,radius:number,yMin:number,yMax:number},fx:'light'|'heavy'|'throw'|'super',shake:number,flash:number,cancel?:MoveCancel,armor?:MoveArmor,travel?:MoveTravel,aiRole?:string,meterCost?:number,techable?:boolean}} MoveData */
 /** @typedef {{from:number,to:number,distance:number}} MoveTravel */
 /** @typedef {{from:number,to:number,hits:number,damageScale:number,levels:string[]}} MoveArmor */
 /** @typedef {{into:string,from:number,to:number,requiresContact:boolean}} MoveCancel */
@@ -94,6 +96,10 @@ export function validateMoveTable(moves) {
     if (m.aiRole !== undefined && !AI_ROLES.includes(m.aiRole)) throw new Error(`move ${id}: aiRole must be one of ${AI_ROLES.join('/')}`);
     if (m.meterCost !== undefined && (!Number.isInteger(m.meterCost) || m.meterCost < 0)) {
       throw new Error(`move ${id}: meterCost must be an integer >= 0`);
+    }
+    if (m.techable !== undefined) {
+      if (typeof m.techable !== 'boolean') throw new Error(`move ${id}: techable must be boolean`);
+      if (m.level !== 'throw') throw new Error(`move ${id}: techable is for throws only`);
     }
   }
   for (const id of Object.keys(moves)) chainLength(moves, id);

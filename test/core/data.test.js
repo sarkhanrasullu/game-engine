@@ -3,8 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import COMBAT from '../fixtures/combat_tuning.json' with { type: 'json' };
 import { numberTable, deepFreeze } from '../../src/core/data.js';
-import { FIGHTER_RULES, RULE_KEYS, buildRules } from '../fixtures/bound/fighter-config.js';
-import { MOVEMENT_CONFIG, MOVEMENT_KEYS } from '../fixtures/bound/movement-config.js';
+import { FIGHTER_RULES, RULE_DEFAULTS, RULE_KEYS, buildRules } from '../fixtures/bound/fighter-config.js';
+import { MOVEMENT_CONFIG, MOVEMENT_DEFAULTS, MOVEMENT_KEYS } from '../fixtures/bound/movement-config.js';
 import { MOVES } from '../fixtures/bound/moves.js';
 
 test('numberTable_validSection_copiesAndFreezes', () => {
@@ -31,8 +31,9 @@ test('deepFreeze_freezesNestedObjects', () => {
 });
 
 test('combatTuning_rulesAndMovement_comeFromJson', () => {
-  for (const k of RULE_KEYS) assert.equal(FIGHTER_RULES[k], COMBAT.rules[k], k);
-  for (const k of MOVEMENT_KEYS) assert.equal(MOVEMENT_CONFIG[k], COMBAT.movement[k], k);
+  // The fixture data ships only the required keys: optional ones must arrive as their defaults.
+  for (const k of RULE_KEYS) assert.equal(FIGHTER_RULES[k], COMBAT.rules[k] ?? RULE_DEFAULTS[k], k);
+  for (const k of MOVEMENT_KEYS) assert.equal(MOVEMENT_CONFIG[k], COMBAT.movement[k] ?? MOVEMENT_DEFAULTS[k], k);
   assert.deepEqual(MOVES, COMBAT.greyboxMoves);
   assert.ok(Object.isFrozen(MOVES.light.hitbox));
 });

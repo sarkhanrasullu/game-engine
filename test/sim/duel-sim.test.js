@@ -110,13 +110,15 @@ test('throw whiffs on an opponent in hitstun or airborne', () => {
   assert.equal(attackPhase(air.a), PHASE.RECOVERY, 'thrower is left in whiff recovery');
 });
 
-test('simultaneous strikes trade: both take damage and both enter hitstun', () => {
+test('simultaneous strikes trade: both take counter damage and both enter hitstun', () => {
   const ctx = duelAt(1.2);
   ctx.in0.light = true;
   ctx.in1.light = true;
   runTo(ctx, L.startup + 1);
-  assert.equal(ctx.a.hp, 100 - L.damage);
-  assert.equal(ctx.b.hp, 100 - L.damage);
+  // A trade is two counters (both defenders were active): fight-systems-gap spec P1.
+  const each = Math.round(L.damage * ctx.sim.rules.counterDamageScale);
+  assert.equal(ctx.a.hp, 100 - each);
+  assert.equal(ctx.b.hp, 100 - each);
   assert.equal(ctx.a.state, STATE.HITSTUN);
   assert.equal(ctx.b.state, STATE.HITSTUN);
 });

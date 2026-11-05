@@ -21,10 +21,16 @@ const VFOV = 50;
 /** Height of the play-mat top the fighters stand on. */
 const FLOOR_Y = 0.05;
 
-/** Hit kind for camera/squash tables from a duel-sim event. */
-function hitKind(e) {
+/**
+ * Hit kind for camera/squash tables from a duel-sim event. A tech is its own kind, never the throw it broke
+ * (no `squash.tech` in a game's table = no squash here; a clash moves both fighters, so the game drives that).
+ * @example hitKind({ type: 'tech', fx: 'throw', armor: 0 }) // 'tech'
+ * @param {{type: string, fx: string, armor: number}} e
+ */
+export function hitKind(e) {
   if (e.type === 'ko') return 'ko';
   if (e.type === 'block') return 'guard';
+  if (e.type === 'tech') return 'tech';
   if (e.armor === 1) return 'armor';
   return e.fx;
 }

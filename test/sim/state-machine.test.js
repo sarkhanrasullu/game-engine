@@ -39,7 +39,7 @@ test('illegal transitions are rejected and leave the fighter unchanged', () => {
     [STATE.BLOCKSTUN, STATE.ATTACK], [STATE.JUMP, STATE.ATTACK], [STATE.JUMP, STATE.GUARD],
     [STATE.JUMP, STATE.THROWN], [STATE.ATTACK, STATE.ATTACK], [STATE.ATTACK, STATE.GUARD],
     [STATE.THROWN, STATE.ATTACK], [STATE.THROWN, STATE.HITSTUN], [STATE.KO, STATE.IDLE],
-    [STATE.IDLE, STATE.BLOCKSTUN], [STATE.SIDESTEP, STATE.ATTACK],
+    [STATE.IDLE, STATE.BLOCKSTUN], [STATE.SIDESTEP, STATE.BLOCKSTUN],
   ];
   for (const [from, to] of illegal) {
     const f = createCombatant(0, 0, 0);

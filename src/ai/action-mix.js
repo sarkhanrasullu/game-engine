@@ -25,7 +25,7 @@ export function actionOf(reason, key) {
     case REASON.EVADE: return key === 'jump' ? 'jump' : 'sidestep';
     case PLAN.JUMP: return 'jump';
     case PLAN.POKE: return key === 'heavy' ? 'heavy' : 'poke';
-    case REASON.STRING: return 'string';
+    case REASON.STRING: case REASON.LINK: return 'string';
     case PLAN.THROW: return 'throw';
     case PLAN.SPECIAL: return 'special';
     case REASON.COUNTER: return 'counter';

@@ -9,12 +9,17 @@
 // `cancel`, `armor`, `travel`), never through a character or move name.
 //
 // Decision order each tick (first match wins):
-//   1. KO / stunned            -> neutral input
+//   1. KO / stunned            -> neutral input; when thrown, reactionFrames after the grab, one roll to tech it
+//                                 (throwTechChance; the grabber's public move data says if it can be broken)
 //   1a. standing in a stage hazard zone it can see -> walk out (hazardEvadeChance; story-013)
 //   1b. first free tick after own blockstun, meter full -> Overwind reversal when the blocked attack
 //                                 leaves an Overwind-sized window (superBlockPunishChance / superComebackHp)
+//   1b2. own blockstun, pressure it cannot punish, meter for it -> Vent (ventChance, once per attack; within one cost
+//                                 of a full meter it saves the meter when it wants the Overwind)
 //   1c. own Light string        -> the next hit of a `cancel` string once the opener connected, inside
 //                                 the cancel window (stringConfirmChance, rolled once per own attack)
+//   1c2. own counter / punish hit -> link the most damaging strike whose startup fits the defender's remaining
+//                                 stun, on the first tick the sim can start it (linkChance, once per hit)
 //   1d. first free tick after an own attack that connected -> frame-data read: blocked at minus frames
 //                                 -> hold guard for the disadvantage plus the reaction delay
 //                                 (disadvantageRespect; never mash into a punish); landed or plus on
@@ -26,10 +31,14 @@
 //   3. own blockstun           -> keep guard held
 //   4. attack in recovery      -> punish with the best move that lands in time (whiffPunishChance, once per
 //                                 attack); with a full meter, Overwind first (superPunishChance, or always
-//                                 at superComebackHp or less of own HP), else the most damaging key
+//                                 at superComebackHp or less of own HP), else the most damaging key. From
+//                                 inside a sidestep past its cut: attack out of the step instead
+//                                 (stepPunishChance, once per attack)
+//   4b. own sidestep           -> runs out: no neutral decision acts out of a step
 //   5. neutral plan            -> utility-weighted wait / approach / back off / poke / guard / sidestep /
 //                                 jump around a preferred range (rangeBias: between close range and the
-//                                 longest poke), throw a guarding opponent in range (throwChance),
+//                                 longest poke), throw a guarding opponent in range (throwChance; once a
+//                                 throw of its was teched this round, an untechable throw special instead),
 //                                 mistakeRate picks at random; then, with specialShare, a special whose
 //                                 `aiRole` fits the delayed view (story-009 §9.3). Overwind is never raw.
 //
@@ -44,7 +53,7 @@
 //
 // Personalities (story-011) and matchups (AI-DEPTH, personalities.js buildMatchups) only rescale these
 // numbers; the fairness rules (reaction delay, input snapshot only, public state) are unchanged.
-import { STATE, PHASE, moveTotal, overwindReady, canAfford } from '../sim/state-machine.js';
+import { STATE, PHASE, moveTotal, overwindReady, canAfford, sidestepCancellable } from '../sim/state-machine.js';
 import { SeededRng } from '../core/rng.js';
 import { DelayedView, createObservation, observe, createHazardObservation, observeHazards } from './perception.js';
 import { applyPersonality } from './personalities.js';
@@ -82,6 +91,7 @@ const SPECIAL_KEYS = Object.freeze(['specialForward', 'specialBack']);
 export const REASON = Object.freeze({
   KO: 'ko', STUNNED: 'stunned', BLOCK: 'block', EVADE: 'evade', RETREAT: 'retreat', BLOCKSTUN: 'blockstun',
   PUNISH: 'punish', HAZARD: 'hazard', STRING: 'string', RESPECT: 'respect', COUNTER: 'counter', ANTI_AIR: 'antiAir',
+  LINK: 'link', TECH: 'tech', VENT: 'vent',
 });
 
 /** Hazard slots a pilot preallocates (sim.hazards beyond this are invisible to it). */
@@ -276,6 +286,8 @@ export class CpuPilot {
     this.reason = PLAN.WAIT;
     /** Debug readout: the poke key behind a POKE reason, else null. */
     this.reasonKey = null;
+    /** Key of the link being pressed (for the debug readout). */
+    this.reasonKeyLink = null;
     this.reset();
   }
 
@@ -300,11 +312,20 @@ export class CpuPilot {
     this.punishSerial = -1;
     this.punishGo = false;
     this.superGo = false;
+    this.stepSerial = -1;
+    this.stepGo = false;
+    this.grabAge = 0;
+    this.techsSeen = 0;
+    this.ventSerial = -1;
     this.wasBlockstun = false;
     this.wasAttack = false;
     this.myPrevFrame = 0;
     this.ownHit = false;
     this.ownMove = null;
+    this.ownContact = 0;
+    this.ownStun = 0;
+    this.linkGo = false;
+    this.linkLeft = 0;
     this.stringGo = false;
     this.guardLeft = 0;
     this.respectBack = false;
@@ -338,12 +359,20 @@ export class CpuPilot {
     this.wasBlockstun = me.state === STATE.BLOCKSTUN;
     const attacking = me.state === STATE.ATTACK;
     const leftAttack = this.wasAttack && !attacking;
+    if (leftAttack && me.state === STATE.TECH) this.techsSeen++; // own throw broken: the opponent techs
     if (attacking && (!this.wasAttack || me.stateFrame < this.myPrevFrame)) {
       // A new own attack (or the next hit of a string): one string roll, only for a move that chains.
       this.ownHit = false;
+      this.linkGo = false;
       this.stringGo = me.move.cancel !== undefined && this.rng.chance(d.stringConfirmChance);
     }
     if (attacking && me.attackHasHit) {
+      if (!this.ownHit) {
+        // First tick after contact: the hit's frame, tier and stun are public (own move data + the call).
+        this.ownContact = me.stateFrame;
+        this.ownStun = me.move.hitstun + this.#stunBonus(me.hitCounter);
+        this.linkGo = me.hitCounter !== 0 && this.rng.chance(d.linkChance);
+      }
       this.ownHit = true;
       this.ownMove = me.move;
     }
@@ -359,7 +388,18 @@ export class CpuPilot {
     clearSnapshot(out);
 
     if (me.state === STATE.KO || them.state === STATE.KO) return this.#say(REASON.KO, out);
-    if (me.state === STATE.HITSTUN || me.state === STATE.THROWN) {
+    if (me.state === STATE.THROWN) {
+      this.planLeft = 0;
+      this.guardLeft = 0;
+      this.grabAge++;
+      if (this.grabAge === d.reactionFrames + 1 && this.#wantsTech(them)) {
+        out.throw = true;
+        return this.#say(REASON.TECH, out);
+      }
+      return this.#say(REASON.STUNNED, out);
+    }
+    this.grabAge = 0;
+    if (me.state === STATE.HITSTUN || me.state === STATE.TECH) {
       this.planLeft = 0;
       this.guardLeft = 0;
       return this.#say(REASON.STUNNED, out);
@@ -384,6 +424,15 @@ export class CpuPilot {
       return this.#say(REASON.PUNISH, out, 'overwind');
     }
 
+    // 1b2. Vent: pressure this CPU cannot punish, answered with space.
+    if (me.state === STATE.BLOCKSTUN && this.#wantsVent(self, me, them, dist, theirR)) {
+      out.throw = true;
+      out.guard = true;
+      out.stick.y = me.crouching ? -1 : 0; // keep the stance the block was made in
+      this.planLeft = 0;
+      return this.#say(REASON.VENT, out);
+    }
+
     // 1c. Light string on a hit confirm: the next hit of a `cancel` string inside its window.
     if (attacking) {
       const c = me.move.cancel;
@@ -396,6 +445,9 @@ export class CpuPilot {
         }
       }
     }
+
+    // 1c2. Link out of an own counter or punish hit.
+    if (this.linkGo && this.#linkStep(out, me, them, self, attacking, dist, theirR)) return this.#say(REASON.LINK, out, this.reasonKeyLink);
 
     // 1d. First free tick after an own attack that connected: read the frame data.
     if (leftAttack && this.ownHit) this.#afterContact(me, them, self, opp, dist, myR, theirR);
@@ -425,7 +477,7 @@ export class CpuPilot {
         this.airSerial = this.jumpSerial;
         this.airGo = this.rng.chance(d.antiAirChance);
       }
-      if (this.airGo && CAN_SIDESTEP[me.state] === true
+      if (this.airGo && CAN_SIDESTEP[me.state] === true && me.state !== STATE.SIDESTEP
         && dist <= keyReach(self, this.antiAirKey, theirR) - this.behaviour.reachMargin) {
         this.#press(out, this.antiAirKey, me);
         this.planLeft = 0;
@@ -453,7 +505,23 @@ export class CpuPilot {
       }
       // Ticks until the opponent can act, extrapolated from what the CPU saw reactionFrames ago.
       const left = moveTotal(them.move) - them.stateFrame - d.reactionFrames;
-      if (this.punishGo && left > 0) {
+      if (me.state === STATE.SIDESTEP) {
+        // A step that made the attack miss: attack out of it once the cut opens, or let it run out.
+        if (this.stepSerial !== this.serial && sidestepCancellable(self)) {
+          this.stepSerial = this.serial;
+          this.stepGo = !them.attackHasHit && this.rng.chance(d.stepPunishChance);
+        }
+        if (this.stepGo && left > 0) {
+          const key = this.#pickPunish(self, dist, left, theirR, me.crouching);
+          if (key !== null && CROUCH_KEYS[key] !== true) {
+            pressMove(out, key);
+            this.stepGo = false;
+            this.punishGo = false;
+            this.planLeft = 0;
+            return this.#say(REASON.PUNISH, out, key);
+          }
+        }
+      } else if (this.punishGo && left > 0) {
         const key = this.#pickPunish(self, dist, left, theirR, me.crouching);
         if (key !== null) {
           if (this.#press(out, key, me)) this.punishGo = false;
@@ -467,6 +535,13 @@ export class CpuPilot {
           return this.#say(REASON.PUNISH, out);
         }
       }
+    }
+
+    // 4b. Inside a sidestep nothing neutral acts: the step is what was chosen. Past the cut a press would
+    // cancel it, and only the step punish above means to. The next free tick re-plans.
+    if (me.state === STATE.SIDESTEP) {
+      this.planLeft = 0;
+      return out;
     }
 
     // 5. Neutral.
@@ -519,6 +594,105 @@ export class CpuPilot {
   }
 
   /**
+   * One tech roll for the grab holding this CPU, made once the reaction delay has passed. It reads the
+   * grabber's move from the delayed view (public frame data: `techable: false` is a command grab, and no roll
+   * is spent on it) and never the grabber's input buffer.
+   */
+  #wantsTech(them) {
+    const m = them.move;
+    if (m === null || m.level !== 'throw' || m.techable === false) return false;
+    return this.rng.chance(this.difficulty.throwTechChance);
+  }
+
+  /**
+   * Plan for a throw on a guarding opponent: the plain throw, unless a throw of this CPU was teched this round
+   * and the kit has a throw special no tech breaks, spendable and in reach (a command grab beats a teching
+   * opponent). Found by the move's data, never its name.
+   */
+  #throwPlan(self, dist, targetR) {
+    if (this.techsSeen === 0) return PLAN.THROW;
+    for (const key of SPECIAL_KEYS) {
+      const m = keyMove(self, key);
+      if (m === undefined || m.level !== 'throw' || m.techable !== false || !spendable(self, m)) continue;
+      if (dist > moveReach(m, targetR) - this.behaviour.reachMargin) continue;
+      this.specialKey = key;
+      return PLAN.SPECIAL;
+    }
+    return PLAN.THROW;
+  }
+
+  /**
+   * One Vent decision per attack that has this CPU in blockstun, once the delayed view shows the attack and with
+   * the meter for it (self.ventCost is public, like meterMax). Never against a move it could punish instead: from
+   * public frame data the attacker's recovery past the blockstun leaves `-advantage` ticks, and a key that lands
+   * inside them is the answer, not a Vent. Meter discipline: within one cost of a full meter the meter is saved
+   * when the CPU wants the Overwind. Reads no buffer and no hidden counter.
+   */
+  #wantsVent(self, me, them, dist, targetR) {
+    if (self.meter < self.ventCost || them.state !== STATE.ATTACK || them.move.level === 'throw') return false;
+    if (this.ventSerial === this.serial) return false;
+    this.ventSerial = this.serial;
+    const left = -frameAdvantage(them.move, true);
+    if (this.#pickPunish(self, dist, left, targetR, me.crouching) !== null) return false;
+    if (self.meter + self.ventCost >= self.meterMax && this.#wantsSuper(self)) return false;
+    return this.rng.chance(this.difficulty.ventChance);
+  }
+
+  /** Hitstun a contact of counter tier `tier` adds, from the public rules. */
+  #stunBonus(tier) {
+    const r = this.rules;
+    return tier === 1 ? r.counterHitstunBonus : tier === 2 ? r.punishHitstunBonus : 0;
+  }
+
+  /**
+   * Link step. Waits for the first tick the sim can start the next move (the last tick of the own attack:
+   * decideFighter frees the fighter and reads the buffer in that same tick), then presses the best move
+   * that lands inside the defender's remaining stun. That stun is public frame data: the own move's
+   * hitstun, the tier's bonus, minus the ticks since the contact (never the defender's hidden counter).
+   * The delayed view must already show the hitstun, so nothing is known before a player could see it.
+   * Writes `out` and returns true while it acts; a link that does not fit ends the roll.
+   */
+  #linkStep(out, me, them, self, attacking, dist, theirR) {
+    if (attacking) {
+      if (me.stateFrame < moveTotal(me.move)) return false;
+      this.linkLeft = this.ownStun - (me.stateFrame - this.ownContact);
+    } else this.linkLeft--;
+    const key = them.state === STATE.HITSTUN && this.linkLeft > 0
+      ? this.#pickLink(self, dist + them.pushLeft, this.linkLeft, theirR, me.crouching) : null;
+    if (key === null) {
+      this.linkGo = false;
+      return false;
+    }
+    if (this.#press(out, key, me)) this.linkGo = false;
+    this.planLeft = 0;
+    this.reasonKeyLink = key;
+    return true;
+  }
+
+  /**
+   * Most damaging strike that links: its lead fits the remaining stun `left` (`startup + 1 <= left`, one
+   * more for a crouch it still has to make) and it reaches `dist`. Throws whiff on hitstun and Overwind is
+   * a punish decision of its own, so neither links; meter discipline applies as to any punish. null when
+   * nothing fits.
+   */
+  #pickLink(self, dist, left, targetR, crouching) {
+    const margin = this.behaviour.reachMargin;
+    let best = null;
+    let bestDmg = -1;
+    for (const key of PUNISH_KEYS) {
+      if (key === 'overwind') continue;
+      const m = keyMove(self, key);
+      if (m === undefined || m.level === 'throw' || !this.#punishAllowed(self, key)) continue;
+      if (this.#lead(key, m, crouching) > left || dist > moveReach(m, targetR) - margin) continue;
+      if (m.damage > bestDmg) {
+        best = key;
+        bestDmg = m.damage;
+      }
+    }
+    return best;
+  }
+
+  /**
    * Frame-data read on the first free tick after an own attack connected. What the delayed view shows
    * decides (a Light's short recovery ends before the view shows the result: nothing is assumed):
    *   BLOCKSTUN seen, minus frames  -> hold guard for the disadvantage plus the reaction delay
@@ -532,7 +706,8 @@ export class CpuPilot {
     const m = this.ownMove;
     const blocked = them.state === STATE.BLOCKSTUN;
     if (!blocked && them.state !== STATE.HITSTUN && them.state !== STATE.THROWN) return;
-    const adv = frameAdvantage(m, blocked);
+    // The contact's real advantage: its actual frame and, on a hit, the tier's stun bonus.
+    const adv = (blocked ? m.blockstun : this.ownStun) - (moveTotal(m) - this.ownContact);
     if (blocked && adv < 0) {
       if (this.rng.chance(d.disadvantageRespect)) {
         this.guardLeft = d.reactionFrames - adv;
@@ -575,7 +750,8 @@ export class CpuPilot {
     const free = CAN_SIDESTEP[me.state] === true;
     switch (this.defence) {
       case DEFENCE_BLOCK:
-        out.guard = true;
+        // A step the CPU chose runs out (only the step punish leaves it early); guard is held from the next free tick.
+        out.guard = me.state !== STATE.SIDESTEP;
         out.stick.y = them.move.level === 'low' ? -1 : 0;
         this.planLeft = 0;
         return this.#say(REASON.BLOCK, out);
@@ -598,7 +774,8 @@ export class CpuPilot {
         this.planLeft = 0;
         return this.#say(REASON.RETREAT, out);
       case DEFENCE_COUNTER:
-        if (free && this.#press(out, this.counterKey, me)) this.defence = DEFENCE_NONE;
+        // Only the step punish (step 4) attacks out of a sidestep: the armour window was timed from a free stance.
+        if (free && me.state !== STATE.SIDESTEP && this.#press(out, this.counterKey, me)) this.defence = DEFENCE_NONE;
         this.planLeft = 0;
         return this.#say(REASON.COUNTER, out, this.counterKey);
       default:
@@ -812,7 +989,7 @@ export class CpuPilot {
     if (rng.chance(d.mistakeRate)) {
       plan = PLANS[rng.int(PLANS.length)];
     } else if (guarding && dist <= throwR && rng.chance(d.throwChance)) {
-      plan = PLAN.THROW;
+      plan = this.#throwPlan(self, dist, theirR);
     } else {
       const w = this.weights;
       const inOppRange = dist <= oppR;

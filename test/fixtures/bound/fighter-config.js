@@ -1,7 +1,7 @@
 // Test fixture (not shipped): the engine with fixture defaults bound in, mirroring a consumer's
 // default-bound re-export layer so the copied unit tests run against frozen tuning data.
 export {
-  METER_KEYS, RULE_KEYS, buildMeter, buildRules,
+  METER_DEFAULTS, METER_KEYS, RULE_DEFAULTS, RULE_KEYS, buildMeter, buildRules,
 } from '../../../src/sim/index.js';
 import { RULESET } from './ruleset.js';
 

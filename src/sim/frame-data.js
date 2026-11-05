@@ -21,6 +21,7 @@ export const OUTCOME = Object.freeze({
   THROW: 'throw',
   ARMOR: 'armor',
   TRADE: 'trade',
+  TECH: 'tech',
 });
 
 /**
@@ -52,6 +53,8 @@ export class FrameDataTracker {
 
   /** Forget everything (training reset). */
   reset() {
+    /** COUNTER_TIER of the last tracked move's contact (0 = none, or not a counter or punish). */
+    this.counter = 0;
     /** Move id / display name of the last started move ('' = none yet). */
     this.moveId = '';
     this.moveName = '';
@@ -97,7 +100,7 @@ export class FrameDataTracker {
     for (let i = 0; i < sim.eventCount; i++) {
       const e = sim.events[i];
       if (e.attacker !== this.playerId || e.type === EVENT.KO) continue;
-      this.onContact(f, e, hitMe);
+      this.onContact(f, e, hitMe, sim.rules);
     }
     if (this.outcome === OUTCOME.PENDING && f.state !== STATE.ATTACK && this.prevState === STATE.ATTACK) {
       this.outcome = OUTCOME.WHIFF;
@@ -121,23 +124,35 @@ export class FrameDataTracker {
     this.onBlock = m.level === 'throw' ? null : frameAdvantage(m, m.startup + 1, 'block');
     this.outcome = OUTCOME.PENDING;
     this.advantage = null;
+    this.counter = 0;
     this.version++;
   }
 
   /** @private */
-  onContact(f, e, hitMe) {
+  onContact(f, e, hitMe, rules) {
+    // The hit's COUNTER_TIER for the overlay: 0 on a block, a throw or a tech.
+    this.counter = e.counter ?? 0;
     // The move that connected is the one this tracker last started (events carry its id).
     const m = f.moves[e.moveId];
     // Contact tick: the attacker advanced once since the last observe. If a trade knocked it out
     // of ATTACK this tick, derive the frame from the previous observation.
     const n = f.state === STATE.ATTACK && f.moveId === e.moveId ? f.stateFrame : this.attackFrame + 1;
-    if (e.type === EVENT.BLOCK) {
+    if (e.type === EVENT.TECH) {
+      // The throw this tracker scored at its connect was broken: nothing landed, both recover together.
+      this.outcome = OUTCOME.TECH;
+      this.advantage = 0;
+      this.damage = 0;
+      this.comboHits = 0;
+      this.comboDamage = 0;
+    } else if (e.type === EVENT.BLOCK) {
       this.outcome = OUTCOME.BLOCK;
       this.advantage = frameAdvantage(m, n, 'block');
     } else {
       const armored = e.armor === 1;
       this.outcome = armored ? OUTCOME.ARMOR : hitMe ? OUTCOME.TRADE : e.type === EVENT.THROW ? OUTCOME.THROW : OUTCOME.HIT;
-      this.advantage = armored || hitMe ? null : frameAdvantage(m, n, 'hit');
+      // A counter or punish adds its stun bonus: the overlay shows the frames the hit really gave.
+      const bonus = e.counter === 1 ? rules.counterHitstunBonus : e.counter === 2 ? rules.punishHitstunBonus : 0;
+      this.advantage = armored || hitMe ? null : frameAdvantage(m, n, 'hit') + bonus;
       this.damage = e.damage;
       if (!armored && this.defenderLocked) {
         this.comboHits++;

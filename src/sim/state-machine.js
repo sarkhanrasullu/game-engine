@@ -20,6 +20,8 @@ export const STATE = Object.freeze({
   HITSTUN: 'hitstun',
   BLOCKSTUN: 'blockstun',
   THROWN: 'thrown',
+  /** Broke out of a throw (both fighters): locked and pushed apart for rules.techFrames (see techReady). */
+  TECH: 'tech',
   KO: 'ko',
 });
 
@@ -45,19 +47,22 @@ export const TRANSITIONS = Object.freeze({
   [S.CROUCH]: row(...LOCO, S.ATTACK, S.GUARD, S.HITSTUN, S.THROWN, S.KO),
   // Airborne: no attacks, no guard, not throwable (presses stay buffered until landing).
   [S.JUMP]: row(...LOCO, S.HITSTUN, S.KO),
-  [S.SIDESTEP]: row(...LOCO, S.HITSTUN, S.THROWN, S.KO),
+  // Past its cut a sidestep is actionable (sidestepCancellable): attack or guard, facing locked as ever.
+  [S.SIDESTEP]: row(...LOCO, S.ATTACK, S.GUARD, S.HITSTUN, S.THROWN, S.KO),
   // A Light-string cancel (story-003 AC 3) swaps the move without leaving ATTACK: see chainAttack.
-  [S.ATTACK]: row(S.IDLE, S.HITSTUN, S.THROWN, S.KO),
+  [S.ATTACK]: row(S.IDLE, S.HITSTUN, S.THROWN, S.TECH, S.KO),
   [S.GUARD]: row(S.IDLE, S.WALK, S.CROUCH, S.ATTACK, S.BLOCKSTUN, S.HITSTUN, S.THROWN, S.KO),
   [S.HITSTUN]: row(S.IDLE, S.HITSTUN, S.KO),
   [S.BLOCKSTUN]: row(S.IDLE, S.BLOCKSTUN, S.HITSTUN, S.THROWN, S.KO),
-  [S.THROWN]: row(S.IDLE, S.KO),
+  [S.THROWN]: row(S.IDLE, S.TECH, S.KO),
+  // Hazards may still strike a fighter in tech; nothing grabs it, and it acts again from IDLE.
+  [S.TECH]: row(S.IDLE, S.HITSTUN, S.KO),
   [S.KO]: row(),
 });
 
 /** States where asking for the current state again is a harmless no-op. */
 const IDEMPOTENT = row(...LOCO, S.GUARD);
-/** States from which a grounded fighter may start an attack or guard. */
+/** States from which a grounded fighter may start an attack or guard (a sidestep past its cut too). */
 const ACTIONABLE = row(S.IDLE, S.WALK, S.CROUCH, S.GUARD);
 const LOCO_SET = row(...LOCO);
 
@@ -81,6 +86,67 @@ export function setState(f, to) {
     f.moveId = null;
   }
   return true;
+}
+
+/** Float slack for a sidestep clock that counts down in 1/60 s steps. */
+const STEP_EPS = 1e-9;
+
+/**
+ * True when fighter `f` is in a sidestep it may cancel into an attack or guard: the step has run
+ * sidestepCancelSeconds (its own kit's movement). A press before that stays buffered, and one more than
+ * inputBufferFrames ticks before the cut ages out (the buffer is not extended for it).
+ * Design: design/quick-specs/fight-systems-gap-2026-11-05.md P4.
+ * @example sidestepCancellable(f) // true from 0.13 s into a 0.3 s step at the shared value
+ * @param {Readonly<Record<string, any>>} f
+ */
+export function sidestepCancellable(f) {
+  if (f.state !== S.SIDESTEP) return false;
+  const m = f.movement;
+  return m.sidestepDuration - f.sidestepT >= m.sidestepCancelSeconds - STEP_EPS;
+}
+
+/**
+ * True while the throw holding `f` can still be broken: a techable throw holds it and fewer than
+ * rules.throwTechWindow unfrozen ticks have run (the throw's hitstop does not count: stateFrame is frozen, and reads
+ * 0 on the first unfrozen tick). The rule's window and the read a presentation layer needs (a throw's damage and
+ * contact meter land at the connect and a tech refunds them, so anything shown before this goes false may be undone).
+ * Read only. Design: design/quick-specs/fight-systems-gap-2026-11-05.md P2.
+ * @example techWindowOpen(f, opp, sim.rules) // false again once the throw has really landed
+ * @param {Readonly<Record<string, any>>} f the thrown fighter
+ * @param {Readonly<Record<string, any>>} opp the thrower (a KO'd one leaves nothing to break free from)
+ * @param {Readonly<Record<string, number>>} rules ruleset.rules
+ */
+export function techWindowOpen(f, opp, rules) {
+  return f.state === S.THROWN && !!f.grabMove && f.stateFrame < rules.throwTechWindow && opp.state !== S.KO;
+}
+
+/**
+ * True when thrown fighter `f` breaks the throw this tick: its tech window is open (techWindowOpen) and a Throw
+ * press is buffered. Call on an unfrozen tick, before decideFighter (frozen ticks never reach it, so a press made
+ * during the throw's hitstop waits for the window's first tick). A press from before the connect does not count:
+ * duel-sim clears the buffer at the connect.
+ * Design: design/quick-specs/fight-systems-gap-2026-11-05.md P2.
+ * @example techReady(f, opp, sim.rules) // true when duel-sim should apply the tech
+ * @param {Readonly<Record<string, any>>} f the thrown fighter
+ * @param {Readonly<Record<string, any>>} opp the thrower
+ * @param {Readonly<Record<string, number>>} rules ruleset.rules
+ */
+export function techReady(f, opp, rules) {
+  return f.bufAction === BUFFER.THROW && techWindowOpen(f, opp, rules);
+}
+
+/**
+ * True when fighter `f` Vents this tick: in its own blockstun with stun still to run, a Throw press buffered and
+ * meter for the cost. Below the cost, or on the tick blockstun ends, the press stays the buffered throw it always
+ * was. Call on an unfrozen tick, before decideFighter (so a press during hitstop or a super freeze waits).
+ * Design: design/quick-specs/fight-systems-gap-2026-11-05.md P3.
+ * @example ventReady(f, opp, sim.meter) // true when duel-sim should apply the Vent
+ * @param {Readonly<Record<string, any>>} f the blocking fighter
+ * @param {Readonly<Record<string, any>>} opp the fighter it would push (a KO'd one has nothing to answer)
+ * @param {Readonly<Record<string, number>>} meter ruleset.meter
+ */
+export function ventReady(f, opp, meter) {
+  return f.state === S.BLOCKSTUN && f.stunLeft > 0 && f.bufAction === BUFFER.THROW && f.meter >= meter.ventCost && opp.state !== S.KO;
 }
 
 /** Total ticks of a move. @param {import('./moves.js').MoveData} m */
@@ -217,6 +283,7 @@ function beginMove(f, opp, moveId) {
   f.moveId = moveId;
   f.move = f.moves[moveId];
   f.attackHasHit = false;
+  f.hitCounter = 0;
   f.armorLeft = f.move.armor === undefined ? 0 : f.move.armor.hits;
   const dx = opp.x - f.x;
   const dz = opp.z - f.z;
@@ -250,16 +317,21 @@ export function decideFighter(f, opp, input, rules, meter) {
   if (s === S.ATTACK) {
     if (f.stateFrame >= moveTotal(f.move)) setState(f, S.IDLE);
     else chainAttack(f, opp);
-  } else if (s === S.HITSTUN || s === S.BLOCKSTUN || s === S.THROWN) {
+  } else if (s === S.HITSTUN || s === S.BLOCKSTUN || s === S.THROWN || s === S.TECH) {
     if (f.stunLeft <= 0) setState(f, S.IDLE);
   }
 
-  if (ACTIONABLE[f.state] === true && f.grounded) {
+  const cut = sidestepCancellable(f);
+  if ((ACTIONABLE[f.state] === true || cut) && f.grounded) {
     const id = bufferedMoveId(f, meter);
     // An unaffordable move (meterCost) is refused; the press stays buffered until it ages out.
-    if (id !== null && canAfford(f, f.moves[id])) startAttack(f, opp, id);
-    else if (f.guardHeld) setState(f, S.GUARD);
-    else if (f.state === S.GUARD) setState(f, S.IDLE);
+    if (id !== null && canAfford(f, f.moves[id])) {
+      if (cut) f.sidestepT = 0; // the arc stops: an attack out of a step lands from where the step reached
+      startAttack(f, opp, id);
+    } else if (f.guardHeld) {
+      if (cut) f.sidestepT = 0;
+      setState(f, S.GUARD);
+    } else if (f.state === S.GUARD) setState(f, S.IDLE);
   }
 
   const it = f.intent;
@@ -308,7 +380,7 @@ export function advanceFighter(f, rules, mcfg) {
     else if (f.intent.stick.x >= mcfg.deadzone || f.intent.stick.x <= -mcfg.deadzone) to = S.WALK;
     else to = S.IDLE;
     setState(f, to);
-  } else if (f.state === S.HITSTUN || f.state === S.BLOCKSTUN || f.state === S.THROWN) {
+  } else if (f.state === S.HITSTUN || f.state === S.BLOCKSTUN || f.state === S.THROWN || f.state === S.TECH) {
     f.stunLeft--;
   }
   f.stateFrame++;

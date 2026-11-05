@@ -7,15 +7,16 @@ import { hazardTimeToActive } from '../sim/hazards.js';
 /**
  * Public, on-screen view of one fighter. `move` is the frozen frame-data record of the attack
  * being performed (what the animation shows); hidden fields (input buffer, held buttons, stun
- * counters) are never copied.
+ * counters) are never copied. hitCounter is the current attack's counter tier (the on-screen call);
+ * pushLeft is the slide still to come from a push already on screen.
  * @returns {{x:number,z:number,grounded:boolean,crouching:boolean,state:string,stateFrame:number,
  *   hp:number,maxHp:number,phase:string,moveId:string|null,move:import('../fighters/moves.js').MoveData|null,
- *   attackHasHit:boolean,frame:number}}
+ *   attackHasHit:boolean,hitCounter:number,pushLeft:number,frame:number}}
  */
 export function createObservation() {
   return {
     x: 0, z: 0, grounded: true, crouching: false, state: 'idle', stateFrame: 0, hp: 0, maxHp: 0,
-    phase: PHASE.NONE, moveId: null, move: null, attackHasHit: false, frame: -1,
+    phase: PHASE.NONE, moveId: null, move: null, attackHasHit: false, hitCounter: 0, pushLeft: 0, frame: -1,
   };
 }
 
@@ -38,6 +39,8 @@ export function observe(o, f, frame) {
   o.moveId = f.moveId;
   o.move = f.move;
   o.attackHasHit = f.attackHasHit;
+  o.hitCounter = f.hitCounter;
+  o.pushLeft = f.pushFrames > 0 ? f.pushLeft : 0;
   o.frame = frame;
   return o;
 }

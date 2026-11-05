@@ -1,7 +1,7 @@
 // Test fixture (not shipped): the engine with fixture defaults bound in, mirroring a consumer's
 // default-bound re-export layer so the copied unit tests run against frozen tuning data.
 export {
-  FIGHTER_MOVEMENT_KEYS, MOVEMENT_KEYS,
+  FIGHTER_MOVEMENT_KEYS, MOVEMENT_DEFAULTS, MOVEMENT_KEYS,
 } from '../../../src/sim/index.js';
 import { fighterMovement as engineFighterMovement } from '../../../src/sim/index.js';
 import { RULESET } from './ruleset.js';

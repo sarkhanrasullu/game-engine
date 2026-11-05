@@ -42,12 +42,22 @@ import { numberTable } from '../core/data.js';
  *   jumpChance         (default 0) chance to jump over a slow throw it sees coming (airborne = unthrowable)
  *   matchupSkill       (default 1) 0..1 how much of the matchup plan (personalities.js buildMatchups) the level
  *                      applies: 1 = the full plan, 0 = none (an Easy CPU knows the matchup less); locked
+ * Fight-system keys (optional, default 0 = the level does not use the system; design/quick-specs/
+ * fight-systems-gap-2026-11-05.md section 4):
+ *   linkChance         chance, rolled once per own counter or punish hit, to link the next move when the
+ *                      defender's remaining stun (public frame data) covers its startup
+ *   stepPunishChance   chance, rolled once per attack seen in recovery while the CPU is in a sidestep, to
+ *                      attack out of the step (the whiff punish key choice); without it the step runs out
+ *   throwTechChance    chance, rolled once per grab reactionFrames after it connects, to press Throw and
+ *                      break it (never a move whose frame data says techable: false)
+ *   ventChance         chance, rolled once per attack that has the CPU in blockstun, to Vent: only with the meter
+ *                      for it and only against a move it could not punish instead
  */
 export const DIFFICULTY_KEYS = Object.freeze([
   'reactionFrames', 'decisionFrames', 'blockChance', 'sidestepChance', 'whiffPunishChance',
   'throwChance', 'aggression', 'mistakeRate', 'specialShare', 'superPunishChance', 'superBlockPunishChance',
   'superComebackHp', 'hazardEvadeChance', 'stringConfirmChance', 'pressureChance', 'disadvantageRespect',
-  'antiAirChance', 'counterChance', 'retreatChance', 'jumpChance', 'matchupSkill',
+  'antiAirChance', 'counterChance', 'retreatChance', 'jumpChance', 'matchupSkill', 'linkChance', 'stepPunishChance', 'throwTechChance', 'ventChance',
 ]);
 
 /** Default of each optional level key, from the required keys. */
@@ -61,6 +71,10 @@ const DIFFICULTY_DEFAULTS = Object.freeze({
   retreatChance: () => 0,
   jumpChance: () => 0,
   matchupSkill: () => 1,
+  linkChance: () => 0,
+  stepPunishChance: () => 0,
+  throwTechChance: () => 0,
+  ventChance: () => 0,
 });
 
 /** Difficulty keys a level file may omit (filled with a derived default by buildDifficulty). */

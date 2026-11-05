@@ -38,6 +38,8 @@ export function createCombatant(id, x, z, ruleset) {
     move: /** @type {import('./moves.js').MoveData|null} */ (null),
     /** The current attack already connected (one hit per attack). */
     attackHasHit: false,
+    /** COUNTER_TIER (duel-sim.js) of the current attack's hit; 0 until it lands a counter or punish. */
+    hitCounter: 0,
     /** Armour hits left on the current attack (move.armor.hits at attack start; see moves.js). */
     armorLeft: 0,
     /** Position in a Light string: 0 = opener / plain attack, 1+ = chained hits (story-003 AC 3). */
@@ -46,8 +48,15 @@ export function createCombatant(id, x, z, ruleset) {
     attackDirX: 1,
     attackDirZ: 0,
     attackYaw: 0,
-    /** Remaining hitstun / blockstun / thrown ticks. */
+    /** Remaining hitstun / blockstun / thrown / tech ticks. */
     stunLeft: 0,
+    /**
+     * The techable throw holding this fighter (null otherwise) and the Wind that throw's contact gave
+     * each side; a tech undoes both the damage and the gains (design: fight-systems-gap P2).
+     */
+    grabMove: /** @type {import('./moves.js').MoveData|null} */ (null),
+    grabGainSelf: 0,
+    grabGainOpp: 0,
     /** Pushback still to apply, spread over pushFrames ticks along pushDir. */
     pushLeft: 0,
     pushFrames: 0,
@@ -64,6 +73,8 @@ export function createCombatant(id, x, z, ruleset) {
      */
     meter: 0,
     meterMax: meter.max,
+    /** Wind a Vent spends (meter.ventCost), public like meterMax: the pilot reads it from the fighter. */
+    ventCost: meter.ventCost,
     /** Attack frames of the current move's travel already blocked (rest of the distance dropped). */
     travelStopped: false,
     /** This fighter's move table and button -> move id map (story-003 swaps in per-fighter kits). */
@@ -112,10 +123,14 @@ export function resetCombatant(f, x, z, rules) {
   f.moveId = null;
   f.move = null;
   f.attackHasHit = false;
+  f.hitCounter = 0;
   f.armorLeft = 0;
   f.chainStep = 0;
   f.limbHurtActive = false;
   f.stunLeft = 0;
+  f.grabMove = null;
+  f.grabGainSelf = 0;
+  f.grabGainOpp = 0;
   f.pushLeft = 0;
   f.pushFrames = 0;
   f.bufAction = BUFFER.NONE;

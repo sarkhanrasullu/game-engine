@@ -255,6 +255,8 @@ function emitHazard(sim, type, h, f, damage, knockback, blocked, armor, shake, f
   e.blocked = blocked;
   e.armor = armor;
   e.super = 0;
+  e.counter = 0;
+  e.refund = 0;
   e.defenderHp = f === null ? 0 : f.hp;
   e.x = f === null ? (z.x0 + z.x1) * 0.5 : f.x;
   e.y = f === null ? (z.y0 > -Infinity ? z.y0 : 0) : f.y;

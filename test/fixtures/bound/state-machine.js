@@ -1,7 +1,7 @@
 // Test fixture (not shipped): the engine with fixture defaults bound in, mirroring a consumer's
 // default-bound re-export layer so the copied unit tests run against frozen tuning data.
 export {
-  PHASE, STATE, TRANSITIONS, attackPhase, canTransition, chainAttack, chainMoveId, inOwnOverwind, moveTotal, overwindReady, setState, startAttack,
+  PHASE, STATE, TRANSITIONS, attackPhase, canTransition, chainAttack, chainMoveId, inOwnOverwind, moveTotal, overwindReady, setState, sidestepCancellable, startAttack, techReady, ventReady,
 } from '../../../src/sim/index.js';
 import * as E from '../../../src/sim/index.js';
 import { RULESET } from './ruleset.js';

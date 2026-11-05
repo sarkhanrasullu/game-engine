@@ -4,40 +4,49 @@
 // (the first `sim.eventCount` entries) after each stepDuel call.
 import { stepFighter } from './movement.js';
 import { GUARD_TABLE, validateMoveTable } from './moves.js';
-import { createCombatant, resetCombatant, updateHitbox } from './fighter.js';
+import { BUFFER, createCombatant, resetCombatant, updateHitbox } from './fighter.js';
 import { updateHurtboxes } from './hurtbox.js';
 import { cylindersOverlap } from '../core/collision.js';
 import { Hitstop } from '../core/hitstop.js';
 import { SeededRng } from '../core/rng.js';
 import {
   STATE, PHASE, attackPhase, bufferInput, decideFighter, advanceFighter, setState, startPushback,
-  applyTravel, inOwnOverwind,
+  applyTravel, inOwnOverwind, techReady, ventReady,
 } from './state-machine.js';
 import { HAZARD_EVENT_NUM_FIELDS, KO_BY, createHazardRuntime, resetHazards, stepHazards } from './hazards.js';
 
 /** Outcome of one attack against one defender on one tick. */
 export const CONNECT = Object.freeze({ NONE: 0, HIT: 1, BLOCK: 2, THROW: 3 });
 
-/** Presentation event types. */
-export const EVENT = Object.freeze({ HIT: 'hit', BLOCK: 'block', THROW: 'throw', KO: 'ko' });
+/** Presentation event types. TECH: `defender` broke `attacker`'s throw (`moveId`); see applyTech. */
+export const EVENT = Object.freeze({ HIT: 'hit', BLOCK: 'block', THROW: 'throw', KO: 'ko', TECH: 'tech' });
+
+/**
+ * Tier of a strike hit (event field `counter`, fighter field `hitCounter`): NONE a plain hit, COUNTER a
+ * hit on a defender in its attack's startup or active frames, PUNISH a hit on one in its recovery
+ * (design/quick-specs/fight-systems-gap-2026-11-05.md P1).
+ */
+export const COUNTER_TIER = Object.freeze({ NONE: 0, COUNTER: 1, PUNISH: 2 });
 
 /**
  * Meter cues (story-009 §7), in their own pool `sim.cues` / `sim.cueCount` so contact-event
  * consumers (hit-fx, audio, frame data) never mistake them for hits. meterFull: `side` just filled
  * its Wind meter. overwindStart: `side` started Overwind on this tick (frame 1); the sim then
- * freezes `freezeFrames` ticks.
+ * freezes `freezeFrames` ticks. vent: `side` Vented on this tick (see applyVent).
  */
-export const CUE = Object.freeze({ METER_FULL: 'meterFull', OVERWIND_START: 'overwindStart' });
+export const CUE = Object.freeze({ METER_FULL: 'meterFull', OVERWIND_START: 'overwindStart', VENT: 'vent' });
 
 const MAX_EVENTS = 12;
 const MAX_CUES = 4;
 /**
  * Numeric event fields, zeroed when the event pool is created. armor: 1 when the hit was absorbed
  * by the defender's move armour (damage taken, no hitstun), else 0. super: 1 when the attacker's
- * move is its Overwind (story-009 §7), else 0. Hazard events (hazards.js) add in_frames, target,
- * knockback and blocked, plus the string `id` and the frozen `zone` reference; attacker is -1 on them.
+ * move is its Overwind (story-009 §7), else 0. counter: the hit's COUNTER_TIER, 0 on everything else.
+ * refund: on a TECH, the throw damage it undid (the THROW event at the connect reported it), else 0.
+ * Hazard events (hazards.js) add in_frames, target, knockback and blocked, plus the string `id` and the
+ * frozen `zone` reference; attacker is -1 on them.
  */
-const EVENT_NUM_FIELDS = ['attacker', 'defender', 'damage', 'defenderHp', 'x', 'y', 'z', 'shake', 'flash', 'armor', 'super', ...HAZARD_EVENT_NUM_FIELDS];
+const EVENT_NUM_FIELDS = ['attacker', 'defender', 'damage', 'defenderHp', 'x', 'y', 'z', 'shake', 'flash', 'armor', 'super', 'counter', 'refund', ...HAZARD_EVENT_NUM_FIELDS];
 
 /** Move-table validation lives with the move schema; re-exported here for existing callers. */
 export { validateMoveTable };
@@ -151,15 +160,25 @@ function cue(sim, type, side, freezeFrames) {
 }
 
 /**
- * Add Wind for one contact: max(minGain, round(rate * d)), clamped at max (excess lost).
- * Emits CUE.METER_FULL when this gain fills the meter.
+ * Add `amount` Wind, clamped at max (excess lost). Emits CUE.METER_FULL when this fills the meter.
+ * @returns {number} the Wind actually added
+ */
+function addMeter(sim, f, amount) {
+  const cfg = sim.meter;
+  if (f.meter >= cfg.max || amount <= 0) return 0;
+  const before = f.meter;
+  f.meter = Math.min(cfg.max, f.meter + amount);
+  if (f.meter >= cfg.max) cue(sim, CUE.METER_FULL, f.id, 0);
+  return f.meter - before;
+}
+
+/**
+ * Add Wind for one contact: max(minGain, round(rate * d)), clamped at max.
+ * @returns {number} the Wind actually added
  */
 function gainMeter(sim, f, rate, d) {
-  const cfg = sim.meter;
-  if (f.meter >= cfg.max) return;
   const g = Math.round(rate * d);
-  f.meter = Math.min(cfg.max, f.meter + (g > cfg.minGain ? g : cfg.minGain));
-  if (f.meter >= cfg.max) cue(sim, CUE.METER_FULL, f.id, 0);
+  return addMeter(sim, f, g > sim.meter.minGain ? g : sim.meter.minGain);
 }
 
 /** Put both fighters back at their start positions with full HP (greybox round reset). */
@@ -185,7 +204,7 @@ export function connectResult(a, b, rules) {
   if (b.state === STATE.KO || b.state === STATE.THROWN) return CONNECT.NONE;
   const m = a.move;
   const isThrow = m.level === 'throw';
-  if (isThrow && (!b.grounded || b.state === STATE.HITSTUN)) return CONNECT.NONE;
+  if (isThrow && (!b.grounded || b.state === STATE.HITSTUN || b.state === STATE.TECH)) return CONNECT.NONE;
   // Joint-following hurtboxes (story-003 AC 5): body, plus the striking limb while b attacks.
   const hit = updateHitbox(a);
   const body = cylindersOverlap(hit, updateHurtboxes(b, rules));
@@ -196,8 +215,8 @@ export function connectResult(a, b, rules) {
   return CONNECT.HIT;
 }
 
-function emit(sim, type, a, b, m, shake, flash, damage = type === EVENT.BLOCK ? 0 : m.damage, armor = 0) {
-  if (sim.eventCount >= MAX_EVENTS) return;
+function emit(sim, type, a, b, m, shake, flash, damage = type === EVENT.BLOCK ? 0 : m.damage, armor = 0, counter = COUNTER_TIER.NONE) {
+  if (sim.eventCount >= MAX_EVENTS) return null;
   const e = sim.events[sim.eventCount++];
   e.type = type;
   e.attacker = a.id;
@@ -207,6 +226,8 @@ function emit(sim, type, a, b, m, shake, flash, damage = type === EVENT.BLOCK ? 
   e.level = m.level;
   e.damage = damage;
   e.armor = armor;
+  e.counter = counter;
+  e.refund = 0;
   e.super = a.moveId !== null && a.moveId === a.moveInputs.overwind ? 1 : 0;
   e.defenderHp = b.hp;
   // Contact point: defender's hurtbox surface facing the attacker, at the hitbox's height.
@@ -225,6 +246,7 @@ function emit(sim, type, a, b, m, shake, flash, damage = type === EVENT.BLOCK ? 
   e.y = y < hurt.y0 ? hurt.y0 : y > hurt.y1 ? hurt.y1 : y;
   e.shake = shake;
   e.flash = flash;
+  return e;
 }
 
 /**
@@ -242,10 +264,27 @@ export function armorAbsorbs(d, a, m) {
 }
 
 /**
+ * Tier a strike earns against defender `d` in its current state: COUNTER on its own attack's startup or
+ * active frames, PUNISH on its recovery, NONE otherwise. A defender in hitstun, blockstun, sidestep or a
+ * jump is not attacking, so links never compound; a defender performing a throw is excluded (throws
+ * never counter or get countered: they already lose to strikes).
+ * @example startAttack(d, opp, 'heavy'); d.stateFrame = 1; counterTier(d) // COUNTER_TIER.COUNTER
+ * @param {Readonly<Record<string, any>>} d defender, read before any state change this tick
+ * @returns {0|1|2} a COUNTER_TIER
+ */
+export function counterTier(d) {
+  const phase = attackPhase(d);
+  if (phase === PHASE.NONE || d.move.level === 'throw') return COUNTER_TIER.NONE;
+  return phase === PHASE.RECOVERY ? COUNTER_TIER.PUNISH : COUNTER_TIER.COUNTER;
+}
+
+/**
  * Apply one connect. Captured move `m` is the attacker's move before any state change. aGain/bGain:
  * whether each side may gain Wind (false while in its own Overwind, captured before the contact).
+ * tier: the COUNTER_TIER of a CONNECT.HIT, captured before either side's connect applies (an armour
+ * absorb ignores it: an absorbed strike is not a counter).
  */
-function applyConnect(sim, a, b, m, result, aGain, bGain) {
+function applyConnect(sim, a, b, m, result, aGain, bGain, tier) {
   const rules = sim.rules;
   const mc = sim.meter;
   a.attackHasHit = true;
@@ -279,11 +318,21 @@ function applyConnect(sim, a, b, m, result, aGain, bGain) {
     emit(sim, EVENT.BLOCK, a, b, m, m.shake * rules.blockShakeScale, 0);
     return m.blockHitstop;
   }
-  b.hp = Math.max(0, b.hp - m.damage);
-  startPushback(b, a, m.pushback, rules);
   const isThrow = result === CONNECT.THROW;
-  if (aGain) gainMeter(sim, a, isThrow ? mc.throwDealt : mc.hitDealt, m.damage);
-  if (bGain) gainMeter(sim, b, isThrow ? mc.throwTaken : mc.hitTaken, m.damage);
+  let dmg = m.damage;
+  let stun = isThrow ? m.thrownFrames : m.hitstun;
+  let dealt = isThrow ? mc.throwDealt : mc.hitDealt;
+  if (tier !== COUNTER_TIER.NONE) {
+    const counter = tier === COUNTER_TIER.COUNTER;
+    dmg = Math.round(m.damage * (counter ? rules.counterDamageScale : rules.punishDamageScale));
+    stun += counter ? rules.counterHitstunBonus : rules.punishHitstunBonus;
+    dealt *= mc.counterMeterScale;
+    a.hitCounter = tier;
+  }
+  b.hp = Math.max(0, b.hp - dmg);
+  startPushback(b, a, m.pushback, rules);
+  const aGot = aGain ? gainMeter(sim, a, dealt, dmg) : 0;
+  const bGot = bGain ? gainMeter(sim, b, isThrow ? mc.throwTaken : mc.hitTaken, dmg) : 0;
   if (b.hp === 0) {
     setState(b, STATE.KO);
     b.stunLeft = 0;
@@ -291,14 +340,64 @@ function applyConnect(sim, a, b, m, result, aGain, bGain) {
       sim.koFrame = sim.frame;
       sim.koBy = KO_BY.ATTACK;
     }
-    emit(sim, isThrow ? EVENT.THROW : EVENT.HIT, a, b, m, m.shake, m.flash);
+    emit(sim, isThrow ? EVENT.THROW : EVENT.HIT, a, b, m, m.shake, m.flash, dmg, 0, tier);
     emit(sim, EVENT.KO, a, b, m, rules.koShake, rules.koFlash);
     return m.hitstop > rules.koHitstop ? m.hitstop : rules.koHitstop;
   }
   setState(b, isThrow ? STATE.THROWN : STATE.HITSTUN);
-  b.stunLeft = isThrow ? m.thrownFrames : m.hitstun;
-  emit(sim, isThrow ? EVENT.THROW : EVENT.HIT, a, b, m, m.shake, m.flash);
+  b.stunLeft = stun;
+  if (isThrow) {
+    // Open the tech window (a press buffered before this connect was a throw attempt, not a tech).
+    b.grabMove = m.techable === false ? null : m;
+    b.grabGainSelf = bGot;
+    b.grabGainOpp = aGot;
+    b.bufAction = BUFFER.NONE;
+    b.bufFrames = 0;
+  }
+  emit(sim, isThrow ? EVENT.THROW : EVENT.HIT, a, b, m, m.shake, m.flash, dmg, 0, tier);
   return m.hitstop;
+}
+
+/**
+ * Fighter `f` breaks `opp`'s throw (techReady said so): no damage (the HP and contact Wind the throw gave at
+ * its connect are undone), both gain meter.techMeter, both enter TECH for rules.techFrames and are pushed
+ * apart rules.techPushback, the throw's move ends, the press is consumed.
+ * Design: design/quick-specs/fight-systems-gap-2026-11-05.md P2.
+ */
+function applyTech(sim, f, opp) {
+  const rules = sim.rules;
+  const m = f.grabMove;
+  f.hp = Math.min(f.maxHp, f.hp + m.damage);
+  f.meter = Math.max(0, f.meter - f.grabGainSelf);
+  opp.meter = Math.max(0, opp.meter - f.grabGainOpp);
+  addMeter(sim, f, sim.meter.techMeter);
+  addMeter(sim, opp, sim.meter.techMeter);
+  const e = emit(sim, EVENT.TECH, opp, f, m, 0, 0, 0);
+  if (e !== null) e.refund = m.damage;
+  setState(f, STATE.TECH);
+  f.stunLeft = rules.techFrames;
+  if (opp.state === STATE.ATTACK) {
+    setState(opp, STATE.TECH);
+    opp.stunLeft = rules.techFrames;
+  }
+  startPushback(f, opp, rules.techPushback, rules);
+  startPushback(opp, f, rules.techPushback, rules);
+  f.grabMove = null;
+  f.bufAction = BUFFER.NONE;
+  f.bufFrames = 0;
+}
+
+/**
+ * Fighter `f` Vents (ventReady said so): spends meter.ventCost and pushes `opp` meter.ventPushback away over
+ * rules.pushbackFrames. Its own blockstun runs on untouched, so Vent answers pressure with space and gains no
+ * frames. The press is consumed. Design: design/quick-specs/fight-systems-gap-2026-11-05.md P3.
+ */
+function applyVent(sim, f, opp) {
+  f.meter -= sim.meter.ventCost;
+  startPushback(opp, f, sim.meter.ventPushback, sim.rules);
+  f.bufAction = BUFFER.NONE;
+  f.bufFrames = 0;
+  cue(sim, CUE.VENT, f.id, 0);
 }
 
 /**
@@ -324,10 +423,13 @@ export function resolveHits(sim) {
   const m1 = f1.move;
   const g0 = !inOwnOverwind(f0);
   const g1 = !inOwnOverwind(f1);
+  // Tiers from the pre-hit state of both, so a trade is symmetric whichever side applies first.
+  const t0 = r0 === CONNECT.HIT ? counterTier(f1) : COUNTER_TIER.NONE;
+  const t1 = r1 === CONNECT.HIT ? counterTier(f0) : COUNTER_TIER.NONE;
   let stop = 0;
-  if (r0 !== CONNECT.NONE) stop = applyConnect(sim, f0, f1, m0, r0, g0, g1);
+  if (r0 !== CONNECT.NONE) stop = applyConnect(sim, f0, f1, m0, r0, g0, g1, t0);
   if (r1 !== CONNECT.NONE) {
-    const s1 = applyConnect(sim, f1, f0, m1, r1, g1, g0);
+    const s1 = applyConnect(sim, f1, f0, m1, r1, g1, g0, t1);
     if (s1 > stop) stop = s1;
   }
   if (stop > 0) sim.hitstop.trigger(stop);
@@ -364,6 +466,12 @@ export function stepDuel(sim, in0, in1, dt) {
   }
 
   const meter = sim.meter;
+  // Throw tech first: it ends the thrower's move before either fighter decides this tick.
+  if (techReady(f0, f1, rules)) applyTech(sim, f0, f1);
+  else if (techReady(f1, f0, rules)) applyTech(sim, f1, f0);
+  // Vent before the decision too: on the tick blockstun ends the same press is a throw (ventReady).
+  if (ventReady(f0, f1, meter)) applyVent(sim, f0, f1);
+  if (ventReady(f1, f0, meter)) applyVent(sim, f1, f0);
   decideFighter(f0, f1, in0, rules, meter);
   decideFighter(f1, f0, in1, rules, meter);
   // Overwind frame 1 (meter already spent in beginMove): one shared freeze even if both start.

@@ -180,6 +180,7 @@ export function keySpinRate(spec, f) {
       return k.guard;
     case STATE.HITSTUN:
     case STATE.THROWN:
+    case STATE.TECH:
       return k.stun;
     case STATE.KO:
       return 0;
@@ -249,6 +250,11 @@ export function computePose(spec, f, ctx, out) {
       copyPose(out, P.stand);
       addPose(out, D.thrown, stunAmount(n, f.stunLeft, A.stunPeakFrames));
       out.hipYaw += n * A.thrownSpinPerFrame;
+      break;
+    case STATE.TECH:
+      // Both fighters recoil from the broken grab: the kit's optional `deltas.tech`, else its block recoil.
+      copyPose(out, P.stand);
+      addPose(out, D.tech ?? D.blockstun, stunAmount(n, f.stunLeft, A.stunPeakFrames));
       break;
     case STATE.KO:
       if (n > 0) {
